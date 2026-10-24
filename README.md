@@ -27,6 +27,30 @@ Sound starts at 20% volume: IBNIZ programs can produce loud, abrupt noise.
 `--no-audio` disables the output device. Audio initialization failures are
 shown in the application; editing and video remain available.
 
+### Linux desktop integration
+
+`assets/ibniz.svg` is the scalable application icon. The desktop launcher
+`assets/ibniz.desktop` uses the icon name `ibniz`, matching the application's
+Wayland app ID and X11 window class.
+
+To install for the current user:
+
+```sh
+cargo build --release
+install -Dm755 target/release/ibniz "$HOME/.local/bin/ibniz"
+install -Dm644 assets/ibniz.svg "$HOME/.local/share/icons/hicolor/scalable/apps/ibniz.svg"
+install -Dm644 assets/ibniz.desktop "$HOME/.local/share/applications/ibniz.desktop"
+```
+
+Ensure `$HOME/.local/bin` is on your desktop session's `PATH`.
+The native window embeds `assets/ibniz.png`, so it does not need external
+asset files at runtime. To regenerate this PNG after changing the SVG,
+install librsvg and run:
+
+```sh
+rsvg-convert --width 256 --height 256 --output assets/ibniz.png assets/ibniz.svg
+```
+
 ## Live editor
 
 | Control | Action |

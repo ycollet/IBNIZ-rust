@@ -12,8 +12,12 @@ use crate::Options;
 use audio::Audio;
 
 pub fn launch(options: Options, program: Program) -> eframe::Result {
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../assets/ibniz.png"))
+        .map_err(|error| eframe::Error::AppCreation(Box::new(error)))?;
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_app_id("ibniz")
+            .with_icon(icon)
             .with_inner_size([1080.0, 700.0])
             .with_min_inner_size([640.0, 400.0]),
         ..Default::default()
@@ -468,6 +472,21 @@ mod tests {
             },
             Program::compile("^xp M d3r15&*").unwrap(),
         )
+    }
+
+    #[test]
+    fn embedded_application_icon_decodes_to_rgba() {
+        let icon =
+            eframe::icon_data::from_png_bytes(include_bytes!("../../assets/ibniz.png")).unwrap();
+        assert_eq!((icon.width, icon.height), (256, 256));
+        assert_eq!(icon.rgba.len(), 256 * 256 * 4);
+        assert!(
+            icon.rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .any(|pixel| pixel[1] > 0 && pixel[3] > 0)
+        );
     }
 
     #[test]

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=IBNIZ
+Comment=Live audiovisual programming with the IBNIZ virtual machine
+Exec=ibniz %f
+TryExec=ibniz
+Icon=ibniz
+Terminal=false
+Categories=AudioVideo;Development;
+StartupWMClass=ibniz
