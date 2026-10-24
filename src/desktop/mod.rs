@@ -38,6 +38,7 @@ struct App {
     editor: bool,
     help: bool,
     audio: Option<Audio>,
+    dc_blocker: bool,
     volume: f32,
     texture: Option<TextureHandle>,
     error: Option<String>,
@@ -78,6 +79,7 @@ impl App {
             editor: true,
             help: false,
             audio,
+            dc_blocker: true,
             volume: 0.2,
             texture: None,
             error,
@@ -284,6 +286,18 @@ impl App {
                     self.help = !self.help;
                 }
                 ui.add(egui::Slider::new(&mut self.volume, 0.0..=1.0).text("Volume"));
+                ui.menu_button("Audio", |ui| {
+                    if ui
+                        .checkbox(&mut self.dc_blocker, "DC blocker")
+                        .on_hover_text(
+                            "Remove DC offset with a 20 Hz high-pass filter (playback only).",
+                        )
+                        .changed()
+                        && let Some(audio) = &mut self.audio
+                    {
+                        audio.set_dc_blocker(self.dc_blocker);
+                    }
+                });
             });
             if self.editor {
                 ui.horizontal(|ui| {
@@ -380,6 +394,7 @@ impl App {
                 ui.heading("Keyboard shortcuts");
                 ui.label("F12: show / hide help\nEsc: close help, or exit when help is hidden\nF1: run / pause\nF2: reset memory, stacks and time\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
+                ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.separator();
                 ui.heading("IBNIZ instruction reference");
                 ui.label("Numbers are uppercase hexadecimal, using 16.16 fixed point. Separate numbers with spaces or commas; use a dot for fractions.");
@@ -468,6 +483,7 @@ mod tests {
                 frames: 1,
                 output: "output".into(),
                 wav: None,
+                wav_dc_blocker: false,
                 budget: 1_000_000,
             },
             Program::compile("^xp M d3r15&*").unwrap(),
@@ -520,6 +536,61 @@ mod tests {
         assert!(app.compile_error.is_none());
         app.reset();
         assert_eq!(app.vm.status().frame, 0);
+    }
+
+    #[test]
+    fn audio_menu_toggles_dc_blocker_without_changing_vm_state() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        assert!(app.dc_blocker);
+        app.vm.memory_mut()[0x123] = 42;
+        let source = app.source.clone();
+        for (label, enabled) in [
+            ("Audio", true),
+            ("DC blocker", false),
+            ("Audio", false),
+            ("DC blocker", true),
+        ] {
+            let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+            let position = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text) if text.galley.text() == label => {
+                        Some(text.pos + text.galley.size() * 0.5)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| {
+                    panic!("missing menu label: {label}, expected enabled={enabled}")
+                });
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: vec![egui::Event::PointerMoved(position)],
+                    ..Default::default()
+                },
+                |ctx| app.ui(ctx),
+            );
+            for pressed in [true, false] {
+                let _ = ctx.run(
+                    egui::RawInput {
+                        events: vec![egui::Event::PointerButton {
+                            pos: position,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: Modifiers::NONE,
+                        }],
+                        ..Default::default()
+                    },
+                    |ctx| app.ui(ctx),
+                );
+            }
+            assert_eq!(app.dc_blocker, enabled);
+            assert_eq!(app.source, source);
+            assert_eq!(app.vm.status().frame, 0);
+            assert_eq!(app.vm.memory()[0x123], 42);
+            assert!(!app.running);
+        }
     }
 
     #[test]

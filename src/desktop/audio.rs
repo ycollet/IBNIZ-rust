@@ -6,12 +6,14 @@ use std::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ibniz::SAMPLE_RATE;
 
-#[derive(Default)]
+use crate::dc_blocker::DcBlocker;
+
 struct Shared {
     samples: VecDeque<f32>,
     error: Option<String>,
     underruns: u64,
     dropped: u64,
+    dc_blocker: DcBlocker,
 }
 
 pub struct Audio {
@@ -30,7 +32,13 @@ impl Audio {
         let supported = device.default_output_config().map_err(|e| e.to_string())?;
         let format = supported.sample_format();
         let config: cpal::StreamConfig = supported.into();
-        let shared = Arc::new(Mutex::new(Shared::default()));
+        let shared = Arc::new(Mutex::new(Shared {
+            samples: VecDeque::new(),
+            error: None,
+            underruns: 0,
+            dropped: 0,
+            dc_blocker: DcBlocker::new(config.sample_rate.0),
+        }));
         let stream = match format {
             cpal::SampleFormat::F32 => stream::<f32>(&device, &config, shared.clone()),
             cpal::SampleFormat::I16 => stream::<i16>(&device, &config, shared.clone()),
@@ -77,6 +85,14 @@ impl Audio {
         self.resample_phase = 0;
     }
 
+    pub fn set_dc_blocker(&mut self, enabled: bool) {
+        self.shared
+            .lock()
+            .expect("audio queue poisoned")
+            .dc_blocker
+            .set_enabled(enabled);
+    }
+
     pub fn status(&self) -> (Option<String>, u64, u64) {
         let shared = self.shared.lock().expect("audio queue poisoned");
         (shared.error.clone(), shared.underruns, shared.dropped)
@@ -107,6 +123,7 @@ where
                             0.0
                         }
                     };
+                    let sample = shared.dc_blocker.process(sample).clamp(-1.0, 1.0);
                     for channel in frame {
                         *channel = T::from_sample(sample);
                     }

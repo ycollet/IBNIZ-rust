@@ -7,6 +7,9 @@ use std::{
 
 use ibniz::{Program, Vm, export};
 
+mod dc_blocker;
+use dc_blocker::DcBlocker;
+
 #[cfg(feature = "desktop")]
 mod desktop;
 
@@ -19,6 +22,7 @@ struct Options {
     frames: usize,
     output: PathBuf,
     wav: Option<PathBuf>,
+    wav_dc_blocker: bool,
     budget: usize,
 }
 
@@ -39,6 +43,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         frames: 1,
         output: "output".into(),
         wav: None,
+        wav_dc_blocker: false,
         budget: 4_000_000,
     };
     let mut inline = None;
@@ -56,6 +61,7 @@ fn run() -> Result<(), Box<dyn Error>> {
                      --frames N             Number of 60 Hz ticks to export (default: 1)\n\
                      --output DIR           Frame directory (default: output)\n\
                      --wav FILE             Also export 61440 Hz mono signed 16-bit WAV\n\
+                     --dc-blocker           Apply 20 Hz DC blocker to headless WAV (default: off)\n\
                      --max-instructions N   Instruction limit per tick (default: 4000000)\n\
                      -v, --version          Version\n\n\
                      Desktop: F1 run/pause, F2 reset, F12 help, Tab editor, Ctrl/Cmd+S save, Esc close help/exit.",
@@ -74,6 +80,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             "--frames" => options.frames = value(&mut args, &arg)?.parse()?,
             "--output" => options.output = value(&mut args, &arg)?.into(),
             "--wav" => options.wav = Some(value(&mut args, &arg)?.into()),
+            "--dc-blocker" => options.wav_dc_blocker = true,
             "--max-instructions" => options.budget = value(&mut args, &arg)?.parse()?,
             "--" => {
                 for path in args.by_ref() {
@@ -91,6 +98,9 @@ fn run() -> Result<(), Box<dyn Error>> {
             "--frames must be positive and --max-instructions must be at least 4",
         )
         .into());
+    }
+    if options.wav_dc_blocker && (!options.headless || options.wav.is_none()) {
+        return Err(input_error("--dc-blocker requires --headless and --wav FILE").into());
     }
     if inline.is_some() && options.path.is_some() {
         return Err(input_error("use either --code or a source file, not both").into());
@@ -147,10 +157,13 @@ fn render(options: Options, program: Program) -> Result<(), Box<dyn Error>> {
         None
     };
     let mut vm = Vm::new(program);
+    let mut dc_blocker = options
+        .wav_dc_blocker
+        .then(|| DcBlocker::new(ibniz::SAMPLE_RATE));
     let mut incomplete = 0;
     let mut incomplete_audio = 0;
     for index in 0..options.frames {
-        let frame = vm.render_frame(options.budget);
+        let mut frame = vm.render_frame(options.budget);
         if !frame.video_complete && !vm.status().stopped {
             incomplete += 1;
         }
@@ -160,6 +173,14 @@ fn render(options: Options, program: Program) -> Result<(), Box<dyn Error>> {
         let path = options.output.join(format!("frame-{index:06}.ppm"));
         export::write_ppm(BufWriter::new(File::create(path)?), &frame.rgb)?;
         if let Some(audio) = &mut audio {
+            if let Some(filter) = &mut dc_blocker {
+                for sample in &mut frame.audio {
+                    *sample = (filter.process(f32::from(*sample) / 32768.0) * 32768.0)
+                        .round()
+                        .clamp(f32::from(i16::MIN), f32::from(i16::MAX))
+                        as i16;
+                }
+            }
             audio.write_samples(&frame.audio)?;
         }
     }

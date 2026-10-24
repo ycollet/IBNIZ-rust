@@ -27,6 +27,16 @@ Sound starts at 20% volume: IBNIZ programs can produce loud, abrupt noise.
 `--no-audio` disables the output device. Audio initialization failures are
 shown in the application; editing and video remain available.
 
+**Audio > DC blocker** toggles a 20 Hz high-pass filter for speaker playback.
+It is **enabled by default** and removes sustained DC offset, with some
+attenuation of very low bass. The filter runs at the output device's sample
+rate and retains its state between audio callbacks, including during silence.
+Uncheck it for unfiltered playback. This setting does not change the VM or
+headless WAV exports (which have a separate `--dc-blocker` flag), and returns
+to enabled when the application restarts.
+It is not a limiter or a guarantee of speaker or hearing protection; keep the
+volume low.
+
 ### Linux desktop integration
 
 `assets/ibniz.svg` is the scalable application icon. The desktop launcher
@@ -98,6 +108,21 @@ independent of the desktop volume control.
 WAV audio is streamed as each tick is rendered, so recording memory does not
 grow with its duration. Recordings exceeding the standard WAV size limit
 are rejected before rendering starts.
+
+Add `--dc-blocker` alongside `--headless --wav FILE` to apply the same 20 Hz
+high-pass filter to exported audio:
+
+```sh
+cargo run --release --no-default-features -- \
+  --headless -c '^xp M d3r15&*' --frames 120 \
+  --output output --wav output/sound.wav --dc-blocker
+```
+
+Unlike desktop playback, headless filtering is **off by default** so existing
+exports remain unchanged. The filter runs at 61,440 Hz, retains its state
+across ticks, and clips filtered peaks to the signed 16-bit range. It does
+not change the VM or exported video, and does not increase recording memory
+with duration.
 
 With FFmpeg installed:
 
