@@ -134,8 +134,19 @@ fn set_path(options: &mut Options, path: String) -> io::Result<()> {
 
 fn render(options: Options, program: Program) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(&options.output)?;
+    let mut audio = if let Some(path) = &options.wav {
+        let samples = options
+            .frames
+            .checked_mul(1024)
+            .ok_or_else(|| input_error("audio exceeds WAV size limit"))?;
+        Some(export::WavWriter::new(
+            BufWriter::new(File::create(path)?),
+            samples,
+        )?)
+    } else {
+        None
+    };
     let mut vm = Vm::new(program);
-    let mut audio = Vec::new();
     let mut incomplete = 0;
     let mut incomplete_audio = 0;
     for index in 0..options.frames {
@@ -148,12 +159,12 @@ fn render(options: Options, program: Program) -> Result<(), Box<dyn Error>> {
         }
         let path = options.output.join(format!("frame-{index:06}.ppm"));
         export::write_ppm(BufWriter::new(File::create(path)?), &frame.rgb)?;
-        if options.wav.is_some() {
-            audio.extend(frame.audio);
+        if let Some(audio) = &mut audio {
+            audio.write_samples(&frame.audio)?;
         }
     }
-    if let Some(path) = &options.wav {
-        export::write_wav(BufWriter::new(File::create(path)?), &audio)?;
+    if let Some(audio) = audio {
+        audio.finish()?;
     }
     if incomplete > 0 {
         eprintln!(

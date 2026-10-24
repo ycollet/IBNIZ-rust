@@ -135,6 +135,79 @@ fn data_is_cyclic_and_initializes_memory() {
 }
 
 #[test]
+fn bulk_data_initialization_matches_bitwise_cyclic_reference() {
+    let mut random = 1234_u64;
+    for length in [
+        1, 2, 3, 5, 7, 16, 31, 32, 33, 63, 64, 65, 127, 256, 257, 4097,
+    ] {
+        let bits: Vec<_> = (0..length)
+            .map(|_| {
+                random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                ((random >> 32) & 1) as u32
+            })
+            .collect();
+        let data: String = bits
+            .iter()
+            .map(|bit| if *bit == 0 { '0' } else { '1' })
+            .collect();
+        let expected: Vec<i32> = (0..length)
+            .map(|word| {
+                (0..32).fold(0_u32, |value, bit| {
+                    (value << 1) | bits[(word * 32 + bit) % length]
+                }) as i32
+            })
+            .collect();
+        let mut vm = Vm::new(Program::compile(&format!("1GT$b{data}")).unwrap());
+        for (index, value) in vm.memory().iter().enumerate() {
+            let expected = match index {
+                0xe0001 => 0,
+                0xe0002 | 0xe0003 => -65536,
+                _ => expected[index % length],
+            };
+            assert_eq!(
+                *value, expected,
+                "data length {length}, memory word {index}"
+            );
+        }
+        for _ in 0..2 {
+            vm.step();
+        }
+        assert_eq!(
+            vm.top(),
+            (bits[0] << 16) as i32,
+            "data pointer must start at zero"
+        );
+        vm.memory_mut()[0] = !expected[0];
+        vm.reset();
+        assert_eq!(vm.memory()[0], expected[0]);
+        for _ in 0..2 {
+            vm.step();
+        }
+        assert_eq!(vm.top(), (bits[0] << 16) as i32, "reset must rewind data");
+    }
+}
+
+#[test]
+fn data_word_period_larger_than_memory_is_truncated_without_changing_alignment() {
+    let bit_length = ibniz::MEMORY_WORDS + 1;
+    let source = format!("1GT$b1{}", "0".repeat(bit_length - 1));
+    let mut vm = Vm::new(Program::compile(&source).unwrap());
+    for word in [0, 32767, 32768, 65536, 98304, ibniz::MEMORY_WORDS - 1] {
+        let expected = (0..32).fold(0_u32, |value, bit| {
+            (value << 1) | u32::from((word * 32 + bit) % bit_length == 0)
+        });
+        assert_eq!(vm.memory()[word] as u32, expected, "word {word}");
+    }
+    vm.step();
+    vm.step();
+    assert_eq!(
+        vm.top(),
+        65536,
+        "initialization must rewind the data pointer"
+    );
+}
+
+#[test]
 fn input_clears_only_character() {
     let mut vm = Vm::new(Program::compile("UUT").unwrap());
     vm.set_input(0xa3411234);
@@ -226,19 +299,25 @@ fn exporters_report_buffer_flush_failures() {
 
 #[test]
 fn bundled_demos_compile_and_execute_with_bounded_work() {
-    for source in [
-        include_str!("../examples/bitmapzoomer.ib"),
-        include_str!("../examples/ibnizdemo.ib"),
-        include_str!("../examples/julia.ib"),
-        include_str!("../examples/mandelbrot.ib"),
-        include_str!("../examples/oneliners.ib"),
-    ] {
-        let mut vm = Vm::new(Program::compile(source).unwrap());
+    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+    let mut examples: Vec<_> = std::fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "ib"))
+        .collect();
+    examples.sort();
+    assert!(!examples.is_empty());
+    for path in examples {
+        let source = std::fs::read_to_string(&path).unwrap();
+        let program =
+            Program::compile(&source).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        let mut vm = Vm::new(program);
         for _ in 0..2 {
             let frame = vm.render_frame(4_000_000);
-            assert!(frame.instructions <= 4_000_000);
-            assert_eq!(frame.rgb.len(), 196608);
-            assert!(!vm.status().stopped);
+            assert!(frame.instructions <= 4_000_000, "{}", path.display());
+            assert_eq!(frame.rgb.len(), 196608, "{}", path.display());
+            assert_eq!(frame.audio.len(), 1024, "{}", path.display());
+            assert!(!vm.status().stopped, "{}", path.display());
         }
     }
 }

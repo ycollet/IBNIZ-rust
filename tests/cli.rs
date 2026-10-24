@@ -72,5 +72,33 @@ fn headless_cli_exports_requested_frames_and_audio() {
     let bytes = fs::read(wav).unwrap();
     assert_eq!(bytes.len(), 44 + 3 * 1024 * 2);
     assert_eq!(&bytes[24..28], &61440_u32.to_le_bytes());
+    let mut vm = ibniz::Vm::new(ibniz::Program::compile("^xp M d3r15&*").unwrap());
+    let samples: Vec<_> = (0..3)
+        .flat_map(|_| vm.render_frame(4_000_000).audio)
+        .collect();
+    let mut expected = Vec::new();
+    ibniz::export::write_wav(&mut expected, &samples).unwrap();
+    assert_eq!(bytes, expected);
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn oversized_wav_is_rejected_before_rendering_frames() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory =
+        std::env::temp_dir().join(format!("ibniz-wav-limit-{}-{unique}", std::process::id()));
+    let output = binary()
+        .args(["--headless", "-c", "", "--frames", "2097152", "--output"])
+        .arg(&directory)
+        .arg("--wav")
+        .arg(directory.join("audio.wav"))
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("WAV size limit"));
+    assert!(!directory.join("frame-000000.ppm").exists());
     fs::remove_dir_all(directory).unwrap();
 }

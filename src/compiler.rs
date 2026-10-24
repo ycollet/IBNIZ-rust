@@ -110,26 +110,28 @@ impl Program {
         code.push(Instruction::End);
         let mut hints = vec![0; code.len()];
         // The reference parser deliberately uses flat, not nested, skip points.
-        for (i, instruction) in code.iter().enumerate() {
-            let (start, targets): (usize, &[u8]) = match instruction {
-                Instruction::End => (0, b"M"),
-                Instruction::Op(b'M') => (i + 1, b"M"),
-                Instruction::Op(b'?') => (i + 1, b";:"),
-                Instruction::Op(b':') => (i + 1, b";"),
-                Instruction::Op(b'{') => (i + 1, b"}"),
-                _ => continue,
-            };
-            for (j, candidate) in code.iter().enumerate().skip(start) {
-                match candidate {
-                    Instruction::End => break,
-                    Instruction::Op(op) if targets.contains(op) => {
-                        hints[i] = if i == j { 0 } else { j + 1 };
-                        break;
-                    }
-                    _ => {}
+        let (mut conditional, mut endif, mut ret, mut media) = (0, 0, 0, 0);
+        for (i, instruction) in code.iter().enumerate().rev() {
+            match instruction {
+                Instruction::Op(b'?') => hints[i] = conditional,
+                Instruction::Op(b':') => {
+                    hints[i] = endif;
+                    conditional = i + 1;
                 }
+                Instruction::Op(b';') => {
+                    endif = i + 1;
+                    conditional = i + 1;
+                }
+                Instruction::Op(b'{') => hints[i] = ret,
+                Instruction::Op(b'}') => ret = i + 1,
+                Instruction::Op(b'M') => {
+                    hints[i] = media;
+                    media = i + 1;
+                }
+                _ => {}
             }
         }
+        hints[code.len() - 1] = media;
         Ok(Self { code, hints, data })
     }
 
@@ -162,5 +164,58 @@ fn invalid(offset: usize, ch: char) -> CompileError {
     CompileError {
         offset,
         message: format!("unknown IBNIZ character {ch:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn forward_hints(code: &[Instruction]) -> Vec<usize> {
+        let mut hints = vec![0; code.len()];
+        for (i, instruction) in code.iter().enumerate() {
+            let (start, targets): (usize, &[u8]) = match instruction {
+                Instruction::End => (0, b"M"),
+                Instruction::Op(b'M') => (i + 1, b"M"),
+                Instruction::Op(b'?') => (i + 1, b";:"),
+                Instruction::Op(b':') => (i + 1, b";"),
+                Instruction::Op(b'{') => (i + 1, b"}"),
+                _ => continue,
+            };
+            for (j, candidate) in code.iter().enumerate().skip(start) {
+                match candidate {
+                    Instruction::End => break,
+                    Instruction::Op(op) if targets.contains(op) => {
+                        hints[i] = if i == j { 0 } else { j + 1 };
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        hints
+    }
+
+    #[test]
+    fn reverse_skip_points_match_forward_reference() {
+        let symbols = b"?:;{}Md1XL";
+        let mut random = 1234_u64;
+        for length in 0..512 {
+            let source: String = (0..length)
+                .map(|_| {
+                    random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    symbols[(random >> 32) as usize % symbols.len()] as char
+                })
+                .collect();
+            let program = Program::compile(&source).unwrap();
+            assert_eq!(program.hints, forward_hints(&program.code), "{source}");
+        }
+    }
+
+    #[test]
+    fn large_unterminated_conditionals_wrap_to_program_start() {
+        let program = Program::compile(&"?".repeat(16384)).unwrap();
+        assert_eq!(program.hints.len(), 16385);
+        assert!(program.hints.iter().all(|hint| *hint == 0));
     }
 }

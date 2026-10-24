@@ -95,6 +95,9 @@ This writes `frame-000000.ppm`, etc., and an optional signed 16-bit mono WAV
 at 61,440 Hz. Each tick represents 1/60 second and contains 1,024 samples.
 Existing numbered output files are overwritten. Exported sound is full scale,
 independent of the desktop volume control.
+WAV audio is streamed as each tick is rendered, so recording memory does not
+grow with its duration. Recordings exceeding the standard WAV size limit
+are rejected before rendering starts.
 
 With FFmpeg installed:
 
@@ -136,6 +139,9 @@ assert_eq!(frame.audio.len(), 1024);
 
 `Vm::step` executes individual instructions. `memory_mut`, `set_input`,
 `replace_program`, `reset` and `status` support embedding and debugging.
+`export::WavWriter` accepts a total sample count and writes successive chunks
+without requiring a seekable output. Wrap file outputs in `std::io::BufWriter`;
+call `finish` to verify the count and flush buffered output.
 
 ### Compatibility
 
@@ -163,9 +169,11 @@ This is not a cycle-exact SDL frontend clone:
 - Floating-point transcendental results and YUV-to-RGB rounding may vary
   slightly by platform. No unsafe Rust is used in the VM.
 
-The bundled `.ib` examples come from the upstream project. `oneliners.ib`
-is a commented collection; uncomment a line to run it. Its original Latin-1
-nonbreaking space has been converted to UTF-8.
+The [examples catalog](examples/README.md) includes the original five upstream
+files plus 33 deduplicated programs from the manual, jibniz and IBNIZ-js
+galleries, with source credits and licenses. `oneliners.ib` is a commented
+collection; uncomment a line to run it. Its original Latin-1 nonbreaking
+space has been converted to UTF-8.
 
 ## Development
 
@@ -183,4 +191,6 @@ exercise the editor and rendering UI without opening a native window.
 
 [Zlib](LICENSE), retaining the original IBNIZ copyright and notice.
 Original IBNIZ by Ville-Matias Heikkila (viznut); Rust implementation and
-frontend are an altered version. Upstream examples retain the same license.
+frontend are an altered version. Original upstream examples retain the same
+license; additional gallery examples retain their source collection's
+MIT or WTFPL license, documented in [examples/README.md](examples/README.md).

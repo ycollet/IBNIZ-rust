@@ -112,8 +112,17 @@ impl Vm {
             instructions_executed: 0,
         };
         if !vm.program.data.is_empty() {
-            for word in &mut vm.memory {
+            // The word pattern repeats after bit_length / gcd(bit_length, 32) words.
+            let bits = vm.program.data.len();
+            let period = bits >> bits.trailing_zeros().min(5);
+            let mut filled = period.min(vm.memory.len());
+            for word in &mut vm.memory[..filled] {
                 *word = vm.program.read_bits(&mut vm.data_pointer, 32) as i32;
+            }
+            while filled < vm.memory.len() {
+                let count = filled.min(vm.memory.len() - filled);
+                vm.memory.copy_within(..count, filled);
+                filled += count;
             }
             vm.data_pointer = 0;
         }
