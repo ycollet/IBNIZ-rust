@@ -15,6 +15,7 @@ fn help_and_version_work_without_devices() {
     let help = String::from_utf8(help.stdout).unwrap();
     assert!(help.contains("--headless"));
     assert!(help.contains("--dc-blocker"));
+    assert!(help.contains("NSM_URL"));
     assert!(binary().arg("--version").status().unwrap().success());
 }
 
@@ -46,6 +47,10 @@ fn headless_cli_exports_requested_frames_and_audio() {
     let directory = std::env::temp_dir().join(format!("ibniz-cli-{}-{unique}", std::process::id()));
     let wav = directory.join("audio.wav");
     let output = binary()
+        .env(
+            "NSM_URL",
+            "invalid NSM URL must not affect headless exports",
+        )
         .args([
             "--headless",
             "-c",

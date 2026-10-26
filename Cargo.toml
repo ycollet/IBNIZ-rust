@@ -8,12 +8,19 @@ license = "Zlib"
 
 [features]
 default = ["desktop"]
-desktop = ["dep:eframe", "dep:cpal", "dep:ffmpeg-sidecar"]
+desktop = ["dep:eframe", "dep:cpal", "dep:ffmpeg-sidecar", "dep:rosc", "dep:serde", "dep:serde_json", "dep:signal-hook", "dep:url"]
 
 [dependencies]
 eframe = { version = "0.33", optional = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 cpal = { version = "0.16", optional = true }
 ffmpeg-sidecar = { version = "2", optional = true, default-features = false }
+rosc = { version = "0.11", optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
+serde_json = { version = "1", optional = true }
+url = { version = "2", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = { version = "0.3", optional = true }
 
 [profile.release]
 lto = "thin"

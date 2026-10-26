@@ -64,7 +64,8 @@ fn run() -> Result<(), Box<dyn Error>> {
                      --dc-blocker           Apply 20 Hz DC blocker to headless WAV (default: off)\n\
                      --max-instructions N   Instruction limit per tick (default: 4000000)\n\
                      -v, --version          Version\n\n\
-                     Desktop: F1 run/pause, F2 reset, F12 help, Tab editor, Ctrl/Cmd+S save, Esc close help/exit.",
+                     Desktop: F1 run/pause, F2 reset, F12 help, Tab editor, Ctrl/Cmd+S save, Esc close help/exit.\n\
+                     NSM: desktop session management is enabled automatically by NSM_URL (OSC UDP).",
                     env!("CARGO_PKG_VERSION")
                 );
                 return Ok(());

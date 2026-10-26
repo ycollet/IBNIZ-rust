@@ -1,5 +1,6 @@
 mod audio;
 mod examples;
+mod nsm;
 mod recording;
 
 use std::{
@@ -31,13 +32,21 @@ pub fn launch(options: Options, program: Program) -> eframe::Result {
     eframe::run_native(
         "IBNIZ Rust",
         native,
-        Box::new(move |_cc| Ok(Box::new(App::new(options, program)))),
+        Box::new(move |_cc| {
+            let mut app = App::new(options, program);
+            match nsm::Client::from_environment() {
+                Ok(client) => app.nsm = client,
+                Err(error) => app.nsm_error = Some(format!("NSM unavailable: {error}")),
+            }
+            Ok(Box::new(app))
+        }),
     )
 }
 
 struct App {
     source: String,
     saved_source: String,
+    compiled_source: String,
     path: String,
     vm: Vm,
     running: bool,
@@ -71,6 +80,11 @@ struct App {
     close_after_recording: bool,
     example_browser: examples::Browser,
     pending_example: Option<&'static examples::Example>,
+    nsm: Option<nsm::Client>,
+    session: Option<nsm::Project>,
+    nsm_label: String,
+    nsm_error: Option<String>,
+    nsm_quitting: bool,
 }
 
 impl App {
@@ -90,6 +104,7 @@ impl App {
         };
         Self {
             saved_source: options.source.clone(),
+            compiled_source: options.source.clone(),
             source: options.source,
             path: options
                 .path
@@ -127,6 +142,11 @@ impl App {
             close_after_recording: false,
             example_browser: examples::Browser::default(),
             pending_example: None,
+            nsm: None,
+            session: None,
+            nsm_label: String::new(),
+            nsm_error: None,
+            nsm_quitting: false,
         }
     }
 
@@ -165,6 +185,7 @@ impl App {
         match Program::compile(&self.source) {
             Ok(program) => {
                 self.vm.replace_program(program);
+                self.compiled_source = self.source.clone();
                 self.compile_error = None;
             }
             Err(error) => self.compile_error = Some(error.to_string()),
@@ -172,6 +193,12 @@ impl App {
     }
 
     fn save(&mut self) {
+        if self.managed() {
+            if let Err(error) = self.save_session() {
+                self.nsm_error = Some(error.message);
+            }
+            return;
+        }
         match fs::write(&self.path, &self.source) {
             Ok(()) => {
                 self.saved_source = self.source.clone();
@@ -182,6 +209,11 @@ impl App {
     }
 
     fn load(&mut self) {
+        if self.managed() {
+            self.error =
+                Some("File Load is disabled under NSM; import a bundled example instead.".into());
+            return;
+        }
         match fs::read_to_string(&self.path) {
             Ok(source) => match Program::compile(&source) {
                 Ok(program) => {
@@ -197,6 +229,7 @@ impl App {
     fn replace_source(&mut self, source: String, program: Program) {
         self.source = source;
         self.saved_source = self.source.clone();
+        self.compiled_source = self.source.clone();
         self.vm = Vm::new(program);
         self.render = None;
         self.render_work = Duration::ZERO;
@@ -220,24 +253,41 @@ impl App {
     }
 
     fn load_example(&mut self, example: &'static examples::Example) {
+        if self.managed() && self.session.is_none() {
+            self.nsm_error =
+                Some("Wait for NSM to open a project before importing an example".into());
+            return;
+        }
         match Program::compile(example.source) {
             Ok(program) => {
+                let previous_saved_source = self.saved_source.clone();
                 self.replace_source(example.source.into(), program);
-                self.path = format!(
-                    "{}-copy.ib",
-                    example
-                        .filename
-                        .strip_suffix(".ib")
-                        .expect("example filename"),
-                );
+                if self.managed() {
+                    self.saved_source = previous_saved_source;
+                } else {
+                    self.path = format!(
+                        "{}-copy.ib",
+                        example
+                            .filename
+                            .strip_suffix(".ib")
+                            .expect("example filename"),
+                    );
+                }
                 self.running = false;
                 self.editor = true;
                 self.example_browser.open = false;
                 self.pending_example = None;
-                self.notice = format!(
-                    "Loaded bundled {} (paused). Save writes a copy to {}; change the path if needed.",
-                    example.title, self.path,
-                );
+                self.notice = if self.managed() {
+                    format!(
+                        "Imported bundled {} into the NSM session (paused).",
+                        example.title
+                    )
+                } else {
+                    format!(
+                        "Loaded bundled {} (paused). Save writes a copy to {}; change the path if needed.",
+                        example.title, self.path,
+                    )
+                };
             }
             Err(error) => {
                 self.pending_example = None;
@@ -272,7 +322,193 @@ impl App {
         }
     }
 
+    fn managed(&self) -> bool {
+        self.nsm.as_ref().is_some_and(nsm::Client::active)
+    }
+
+    fn session_state(&self) -> nsm::State {
+        nsm::State {
+            version: 1,
+            source: self.source.clone(),
+            compiled_source: self.compiled_source.clone(),
+            running: self.running,
+            editor: self.editor,
+            dc_blocker: self.dc_blocker,
+            volume: self.volume,
+            budget: self.budget,
+            slice_ms: self.slice_ms,
+            preview_fps: self.preview_fps,
+            buffer_ms: self.buffer_ms,
+        }
+    }
+
+    fn modified(&self) -> bool {
+        if self.managed() {
+            self.session
+                .as_ref()
+                .is_some_and(|session| session.saved != self.session_state())
+        } else {
+            self.source != self.saved_source
+        }
+    }
+
+    fn open_session(
+        &mut self,
+        ctx: &egui::Context,
+        path: &str,
+        display: &str,
+        client_id: &str,
+    ) -> Result<(), nsm::Failure> {
+        if self.session.is_some() || self.recording.is_some() {
+            return Err(nsm::Failure::new(
+                nsm::NOT_NOW,
+                "Session switching is not supported; restart this client",
+            ));
+        }
+        if self.source != self.saved_source {
+            return Err(nsm::Failure::new(
+                nsm::UNSAVED_CHANGES,
+                "Unsaved source edits would be lost",
+            ));
+        }
+        if display.is_empty() || client_id.is_empty() {
+            return Err(nsm::Failure::new(
+                nsm::BAD_PROJECT,
+                "NSM display name and client ID must not be empty",
+            ));
+        }
+        let mut project = nsm::Project::open(Path::new(path), self.session_state())?;
+        let state = project.saved.clone();
+        let (program, compile_error, compiled_source) = match Program::compile(&state.source) {
+            Ok(program) => (program, None, state.source.clone()),
+            Err(error) => (
+                Program::compile(&state.compiled_source)
+                    .map_err(|e| nsm::Failure::new(nsm::BAD_PROJECT, e.to_string()))?,
+                Some(error.to_string()),
+                state.compiled_source.clone(),
+            ),
+        };
+        self.replace_source(state.source, program);
+        self.compiled_source = compiled_source;
+        self.compile_error = compile_error;
+        self.running = state.running;
+        self.editor = state.editor;
+        self.dc_blocker = state.dc_blocker;
+        self.volume = state.volume;
+        self.budget = state.budget;
+        self.slice_ms = state.slice_ms;
+        self.preview_fps = state.preview_fps;
+        self.buffer_ms = state.buffer_ms;
+        if let Some(audio) = &mut self.audio {
+            audio.set_dc_blocker(self.dc_blocker);
+            audio.set_buffer_ms(self.buffer_ms);
+        }
+        self.path = project
+            .directory
+            .join("state.json")
+            .to_string_lossy()
+            .into_owned();
+        self.recording_directory = project
+            .directory
+            .join("recordings")
+            .to_string_lossy()
+            .into_owned();
+        project.saved = self.session_state();
+        self.session = Some(project);
+        self.nsm_label = format!("{display} ({client_id})");
+        self.pending_example = None;
+        self.notice = format!("Opened NSM session {} at VM time zero", self.nsm_label);
+        self.nsm_error = None;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
+            "IBNIZ Rust - {}",
+            self.nsm_label
+        )));
+        Ok(())
+    }
+
+    fn save_session(&mut self) -> Result<(), nsm::Failure> {
+        if self.recording.is_some() {
+            return Err(nsm::Failure::new(
+                nsm::NOT_NOW,
+                "Stop recording and wait for finalization before saving the NSM session",
+            ));
+        }
+        let state = self.session_state();
+        self.session
+            .as_mut()
+            .ok_or_else(|| nsm::Failure::new(nsm::NO_SESSION, "NSM has not opened a project yet"))?
+            .save(state)?;
+        self.saved_source = self.source.clone();
+        self.notice = format!("Saved NSM session {}", self.nsm_label);
+        self.nsm_error = None;
+        Ok(())
+    }
+
+    fn poll_nsm(&mut self, ctx: &egui::Context) {
+        let Some(client) = &mut self.nsm else {
+            return;
+        };
+        if client.termination_requested() {
+            self.nsm_quitting = true;
+            self.running = false;
+            self.pending_example = None;
+            if let Some(audio) = &mut self.audio {
+                audio.clear();
+            }
+            if let Some(recording) = &mut self.recording {
+                recording.request_shutdown();
+            }
+            return;
+        }
+        let events = client.poll();
+        for event in events {
+            let (path, result) = match event {
+                nsm::Event::Announced => {
+                    self.notice = "NSM connected; waiting for a project".into();
+                    continue;
+                }
+                nsm::Event::Open {
+                    path,
+                    display,
+                    client_id,
+                } => (
+                    nsm::OPEN,
+                    self.open_session(ctx, &path, &display, &client_id),
+                ),
+                nsm::Event::Save => (nsm::SAVE, self.save_session()),
+                nsm::Event::Warning(error) => {
+                    eprintln!("ibniz: {error}");
+                    self.nsm_error = Some(error);
+                    continue;
+                }
+            };
+            if let Err(error) = &result {
+                self.nsm_error = Some(error.message.clone());
+            }
+            if let Err(error) = self.nsm.as_ref().expect("NSM client").reply(path, result) {
+                eprintln!("ibniz: {error}");
+                self.nsm_error = Some(error);
+            }
+        }
+    }
+
+    fn report_nsm_dirty(&mut self) {
+        if self.session.is_some() {
+            let dirty = self.modified();
+            if let Some(client) = &mut self.nsm
+                && let Err(error) = client.report_dirty(dirty)
+            {
+                eprintln!("ibniz: {error}");
+                self.nsm_error = Some(error);
+            }
+        }
+    }
+
     fn start_recording(&mut self) {
+        if self.managed() && self.session.is_none() {
+            self.nsm_error = Some("Wait for NSM to open a project before recording".into());
+            return;
+        }
         if self.recording.is_some() {
             self.error = Some("A recording is already active or finishing".into());
             return;
@@ -508,11 +744,20 @@ impl eframe::App for App {
 
 impl App {
     fn ui(&mut self, ctx: &egui::Context) {
+        self.poll_nsm(ctx);
+        self.poll_recording(ctx);
+        if self.nsm_quitting {
+            if self.recording.is_none() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else {
+                ctx.request_repaint_after(Duration::from_millis(10));
+            }
+            return;
+        }
         self.shortcuts(ctx);
         if ctx.input(|i| i.viewport().close_requested()) {
             self.request_close(ctx);
         }
-        self.poll_recording(ctx);
         egui::TopBottomPanel::top("controls").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui
@@ -587,14 +832,14 @@ impl App {
             if self.editor {
                 ui.horizontal(|ui| {
                     ui.label("File");
-                    ui.text_edit_singleline(&mut self.path);
-                    if ui.button("Load").clicked() {
+                    ui.add_enabled(!self.managed(), egui::TextEdit::singleline(&mut self.path));
+                    if ui.add_enabled(!self.managed(), egui::Button::new("Load")).clicked() {
                         self.load();
                     }
-                    if ui.button("Save").clicked() {
+                    if ui.button(if self.managed() { "Save session" } else { "Save" }).clicked() {
                         self.save();
                     }
-                    if self.source != self.saved_source {
+                    if self.modified() {
                         ui.label("Modified");
                     }
                 });
@@ -704,6 +949,18 @@ impl App {
                 ui.colored_label(Color32::RED, error);
                 if ui.small_button("Dismiss").clicked() { self.error = None; }
             }
+            if let Some(client) = &self.nsm {
+                if client.active() {
+                    ui.small(format!("NSM: {} | {}", client.manager,
+                        if self.session.is_some() { self.nsm_label.as_str() } else { "waiting for project" }));
+                } else if client.needs_poll() {
+                    ui.small("NSM: waiting for announce reply");
+                }
+            }
+            if let Some(error) = &self.nsm_error {
+                ui.colored_label(Color32::RED, error);
+                if ui.small_button("Dismiss NSM error").clicked() { self.nsm_error = None; }
+            }
             if let Some(recording) = &self.recording {
                 ui.colored_label(
                     if recording.is_capturing() { Color32::RED } else { Color32::YELLOW },
@@ -760,7 +1017,8 @@ impl App {
                 self.input(ui, &response);
             }
         });
-        if let Some(example) = self.example_browser.show(ctx) {
+        let managed = self.managed();
+        if let Some(example) = self.example_browser.show(ctx, managed) {
             self.request_example(example);
         }
         egui::Window::new("IBNIZ Help (F12)")
@@ -771,7 +1029,8 @@ impl App {
                 ui.heading("Keyboard shortcuts");
                 ui.label("F12: show / hide help\nEsc: cancel example loading, close help or examples, otherwise exit\nF1: run / pause\nF2: reset memory, stacks and time\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
-                ui.label("Examples: search bundled programs by title, description, contributor or source, and filter by category. Loading resets and pauses playback, asks before discarding edits, and suggests a local copy path. Credits, pinned source links and collection licenses are available offline (links require a browser).");
+                ui.label("Examples: search bundled programs by title, description, contributor or source, and filter by category. Loading resets and pauses playback, asks before discarding edits, and suggests a local copy path outside NSM sessions. Credits, pinned source links and collection licenses are available offline (links require a browser).");
+                ui.label("NSM: launch from a session manager to save source and playback settings in its assigned project. Loading restarts the VM at time zero. File Load is disabled; examples are imported into the session. Stop recording and wait for finalization before saving.");
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.label("Recording: choose an output folder and Start/Stop to save PPM frames and full-scale, unfiltered WAV audio. Run/pause and compile errors pause capture. Optional MP4 uses installed FFmpeg after Stop; original files are retained.");
                 ui.label("Playback: adjust preview refresh, instructions per VM tick, UI work slices and audio buffering without resetting the VM. Preview refresh affects only the display, not recordings. Audio rebuffering uses short fades; sustained overload can still cause gaps.");
@@ -805,7 +1064,8 @@ impl App {
             });
         self.confirm_example(ctx);
         self.tick(ctx);
-        if self.recording.is_some() {
+        self.report_nsm_dirty();
+        if self.recording.is_some() || self.nsm.is_some() {
             ctx.request_repaint_after(Duration::from_millis(100));
         }
     }
@@ -925,6 +1185,166 @@ mod tests {
                 |ctx| app.ui(ctx),
             );
         }
+    }
+
+    fn managed_app() -> (App, nsm::tests::Server) {
+        let (server, mut client) = nsm::tests::Server::pair();
+        server.accept(&mut client);
+        let mut app = app();
+        app.nsm = Some(client);
+        (app, server)
+    }
+
+    fn open_managed(app: &mut App, server: &nsm::tests::Server, ctx: &egui::Context, path: &Path) {
+        server.open(path);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while app.session.is_none() && app.nsm_error.is_none() {
+            assert!(Instant::now() < deadline, "NSM open was not processed");
+            app.poll_nsm(ctx);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let reply = server.receive();
+        assert_eq!(reply.addr, "/reply", "{reply:?}");
+        assert_eq!(reply.args[0], rosc::OscType::String(nsm::OPEN.into()));
+    }
+
+    #[test]
+    fn nsm_open_save_dirty_and_restore_preserve_source_and_settings_but_reset_vm() {
+        let directory = nsm::tests::TestDirectory::new();
+        let path = directory.0.join("IBNIZ session.nTEST");
+        let ctx = egui::Context::default();
+        let (mut app, server) = managed_app();
+        open_managed(&mut app, &server, &ctx, &path);
+        assert!(app.managed());
+        assert!(!app.modified());
+        app.report_nsm_dirty();
+        assert_eq!(server.receive().addr, "/nsm/client/is_clean");
+        app.volume = 0.45;
+        app.preview_fps = 15;
+        app.budget = 2_000_000;
+        app.buffer_ms = 140;
+        app.dc_blocker = false;
+        app.slice_ms = 3;
+        app.editor = false;
+        app.running = true;
+        app.vm.memory_mut()[0x123] = 42;
+        app.report_nsm_dirty();
+        assert_eq!(server.receive().addr, "/nsm/client/is_dirty");
+        app.source = "invalid".into();
+        app.recompile();
+        assert!(app.compile_error.is_some());
+        server.send(nsm::SAVE, vec![]);
+        assert_eq!(server.receive_after(|| app.poll_nsm(&ctx)).addr, "/reply");
+        assert!(!app.modified());
+        app.report_nsm_dirty();
+        assert_eq!(server.receive().addr, "/nsm/client/is_clean");
+
+        let (mut restored, restored_server) = managed_app();
+        open_managed(&mut restored, &restored_server, &ctx, &path);
+        assert_eq!(restored.source, "invalid");
+        assert!(restored.compile_error.is_some());
+        assert_eq!(restored.compiled_source, "^xp M d3r15&*");
+        assert_eq!(restored.volume, 0.45);
+        assert_eq!(restored.preview_fps, 15);
+        assert_eq!(restored.budget, 2_000_000);
+        assert_eq!(restored.buffer_ms, 140);
+        assert!(!restored.dc_blocker);
+        assert_eq!(restored.slice_ms, 3);
+        assert!(!restored.editor);
+        assert!(restored.running);
+        assert_eq!(restored.vm.status().frame, 0);
+        assert_eq!(restored.vm.memory()[0x123], 0);
+        assert_eq!(
+            Path::new(&restored.recording_directory),
+            path.join("recordings")
+        );
+        let managed_path = restored.path.clone();
+        restored.request_example(bundled_example("plasma.ib"));
+        assert_eq!(restored.source, bundled_example("plasma.ib").source);
+        assert_eq!(restored.path, managed_path);
+        assert!(!restored.running);
+        assert!(restored.modified());
+        restored.save();
+        let saved: nsm::State =
+            serde_json::from_slice(&fs::read(path.join("state.json")).unwrap()).unwrap();
+        assert_eq!(saved.source, bundled_example("plasma.ib").source);
+        assert!(!restored.modified());
+        restored.path = directory
+            .0
+            .join("must-not-create.ib")
+            .to_string_lossy()
+            .into_owned();
+        restored.load();
+        assert_eq!(restored.source, saved.source);
+        restored.save();
+        assert!(!Path::new(&restored.path).exists());
+        assert!(path.join("state.json").exists());
+    }
+
+    #[test]
+    fn nsm_open_errors_preserve_edits_and_reject_session_switching() {
+        let directory = nsm::tests::TestDirectory::new();
+        let ctx = egui::Context::default();
+        let (mut app, server) = managed_app();
+        app.source.push_str(" 1");
+        server.open(&directory.0.join("first"));
+        let error = server.receive_after(|| app.poll_nsm(&ctx));
+        assert_eq!(error.addr, "/error");
+        assert_eq!(error.args[1], rosc::OscType::Int(nsm::UNSAVED_CHANGES));
+        assert!(app.session.is_none());
+        assert!(app.source.ends_with(" 1"));
+        app.source = app.saved_source.clone();
+        app.nsm_error = None;
+        open_managed(&mut app, &server, &ctx, &directory.0.join("first"));
+        server.open(&directory.0.join("second"));
+        let error = server.receive_after(|| app.poll_nsm(&ctx));
+        assert_eq!(error.addr, "/error");
+        assert_eq!(error.args[1], rosc::OscType::Int(nsm::NOT_NOW));
+        assert!(!directory.0.join("second").exists());
+    }
+
+    #[test]
+    fn nsm_save_reports_not_now_while_recording_and_sigterm_finalizes_without_dialogs() {
+        let directory = nsm::tests::TestDirectory::new();
+        let ctx = egui::Context::default();
+        let (mut app, server) = managed_app();
+        open_managed(&mut app, &server, &ctx, &directory.0.join("client.nTEST"));
+        app.start_recording();
+        let frame = app.vm.render_frame(app.budget);
+        app.recording.as_mut().unwrap().capture(&frame).unwrap();
+        let take = app.recording.as_ref().unwrap().directory.clone();
+        server.send(nsm::SAVE, vec![]);
+        let error = server.receive_after(|| app.poll_nsm(&ctx));
+        assert_eq!(error.addr, "/error");
+        assert_eq!(error.args[1], rosc::OscType::Int(nsm::NOT_NOW));
+        app.source.push_str(" 1");
+        app.request_example(bundled_example("plasma.ib"));
+        assert!(app.pending_example.is_some());
+        app.nsm.as_ref().unwrap().request_termination();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let closed = loop {
+            let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+            if output
+                .viewport_output
+                .values()
+                .flat_map(|output| &output.commands)
+                .any(|command| matches!(command, egui::ViewportCommand::Close))
+            {
+                break true;
+            }
+            assert!(Instant::now() < deadline, "NSM shutdown did not finish");
+            std::thread::sleep(Duration::from_millis(1));
+        };
+        assert!(closed);
+        assert!(app.nsm_quitting);
+        assert!(!app.running);
+        assert!(app.pending_example.is_none());
+        assert!(app.recording.is_none());
+        assert_eq!(
+            fs::read(take.join("sound.wav")).unwrap().len(),
+            44 + 1024 * 2
+        );
+        assert!(take.join("frame-000000.ppm").exists());
     }
 
     #[test]

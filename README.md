@@ -33,7 +33,7 @@ attenuation of very low bass. The filter runs at the output device's sample
 rate and retains its state between audio callbacks, including during silence.
 Uncheck it for unfiltered playback. This setting does not change the VM or
 headless WAV exports (which have a separate `--dc-blocker` flag), and returns
-to enabled when the application restarts.
+to enabled when the application restarts outside an NSM session.
 It is not a limiter or a guarantee of speaker or hearing protection; keep the
 volume low.
 
@@ -181,6 +181,7 @@ This uses **ffmpeg-sidecar**, as in hydra-rust, with an installed `ffmpeg` on
 FFmpeg must support `libx264` and AAC. MP4 uses H.264/yuv420p video at 60 fps
 and AAC audio resampled to 48 kHz. PPM/WAV originals are always retained,
 including when conversion fails; existing recordings are never overwritten.
+Encoder diagnostics are retained in the take's `ffmpeg.log`.
 An empty take creates only an empty WAV and skips MP4 conversion.
 
 Disk writes and encoding run off the UI thread with a bounded eight-frame
@@ -189,6 +190,41 @@ than silently dropping frames or accumulating memory. Queued frames are
 finalized. Write/size-limit and FFmpeg errors appear in the status bar.
 PPM sequences consume roughly 11.3 MiB/s, plus audio; WAV recordings are limited
 to about 9.7 hours by the standard WAV file-size limit.
+
+### NSM sessions
+
+The desktop supports [New/Non Session Manager (NSM)](https://new-session-manager.jackaudio.org/).
+Install the executable on `PATH` (see Linux desktop integration above), then add
+`ibniz` as a client in your session manager. NSM supplies `NSM_URL`; no extra
+application flag is needed. Without it, standalone behavior is unchanged.
+Invalid or unreachable managers produce a visible warning and fall back to
+standalone mode. Headless exports ignore `NSM_URL`.
+
+Each client uses the project directory assigned by NSM, containing a
+self-contained `state.json`. Session saves preserve editor source (including
+invalid drafts), the last valid program, run/pause and editor visibility,
+volume, DC blocker, instruction budget, work slice, preview refresh and minimum
+audio buffer. Loading starts the VM at **time zero** with memory/stacks and
+diagnostic counters reset, rather than resuming an execution snapshot.
+Invalid drafts remain visible and suspend playback until corrected.
+
+NSM Save and **Ctrl/Cmd+S** write the session state atomically. The ordinary file
+path is locked and file Load is disabled; bundled examples instead offer
+**Import example**, keeping saves inside the session. Source and playback-setting
+changes are reported to the manager as dirty/clean. Recordings default to
+`<project>/recordings`; explicitly chosen external recording folders are exports.
+Stop recording and wait for finalization/conversion before saving the session:
+while a take is active or finishing, Save returns an explicit “not now” error.
+
+NSM termination (`SIGTERM` on Unix) exits without confirmation or an implicit
+save, even with unsaved edits. Queued recording frames are drained and WAV
+headers finalized; optional MP4 conversion is skipped or cancelled so it does
+not delay session shutdown. PPM/WAV originals remain available.
+
+The client supports OSC over **UDP** and dirty-state reporting. Live session
+switching and optional-GUI hiding are not advertised: the manager must restart
+the client for another project. Audio remains CPAL-based; NSM support does not
+add JACK ports or connection restoration.
 
 ## Headless rendering
 

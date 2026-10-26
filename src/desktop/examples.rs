@@ -437,7 +437,7 @@ impl Browser {
             .collect()
     }
 
-    pub fn show(&mut self, ctx: &egui::Context) -> Option<&'static Example> {
+    pub fn show(&mut self, ctx: &egui::Context, managed: bool) -> Option<&'static Example> {
         if !self.open {
             return None;
         }
@@ -513,10 +513,14 @@ impl Browser {
                             .max_height(120.0)
                             .show(ui, |ui| { ui.label(text); });
                     });
-                    if ui.button("Load example").clicked() {
+                    if ui.button(if managed { "Import example" } else { "Load example" }).clicked() {
                         load = Some(example);
                     }
-                    ui.small("Loading resets and pauses playback. Save writes a local copy.");
+                    ui.small(if managed {
+                        "Importing resets and pauses playback. Save stays in the NSM project."
+                    } else {
+                        "Loading resets and pauses playback. Save writes a local copy."
+                    });
                 });
                 if let Some(index) = self.selected {
                     ui.collapsing("Source preview", |ui| {
@@ -610,12 +614,12 @@ mod tests {
             ..Default::default()
         };
         let _ = ctx.run(egui::RawInput::default(), |ctx| {
-            assert!(browser.show(ctx).is_none());
+            assert!(browser.show(ctx, false).is_none());
         });
         assert_eq!(EXAMPLES[browser.selected.unwrap()].filename, "plasma.ib");
         browser.search = "no such program exists".into();
         let _ = ctx.run(egui::RawInput::default(), |ctx| {
-            assert!(browser.show(ctx).is_none());
+            assert!(browser.show(ctx, false).is_none());
         });
         assert!(browser.selected.is_none());
     }

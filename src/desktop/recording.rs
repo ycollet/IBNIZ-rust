@@ -1,10 +1,15 @@
 use std::{
     fs::{self, File},
-    io::{self, BufWriter},
+    io::{self, BufWriter, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver, SyncSender, TrySendError},
+    process::Stdio,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, SyncSender, TrySendError},
+    },
     thread::{self, JoinHandle},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use ffmpeg_sidecar::command::{FfmpegCommand, ffmpeg_is_installed};
@@ -31,6 +36,7 @@ pub struct Recording {
     pub frames: u64,
     sender: Option<SyncSender<CapturedFrame>>,
     worker: Option<JoinHandle<Result<CompletedRecording, String>>>,
+    shutdown: Arc<AtomicBool>,
 }
 
 impl Recording {
@@ -61,15 +67,18 @@ impl Recording {
         .map_err(|e| format!("Cannot start recording WAV: {e}"))?;
         let (sender, receiver) = mpsc::sync_channel(QUEUED_FRAMES);
         let output = directory.clone();
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let worker_shutdown = shutdown.clone();
         let worker = thread::Builder::new()
             .name("ibniz-recording".into())
-            .spawn(move || record(output, wav, receiver, mp4))
+            .spawn(move || record(output, wav, receiver, mp4, worker_shutdown))
             .map_err(|e| format!("Cannot start recording worker: {e}"))?;
         Ok(Self {
             directory,
             frames: 0,
             sender: Some(sender),
             worker: Some(worker),
+            shutdown,
         })
     }
 
@@ -108,6 +117,11 @@ impl Recording {
         self.sender = None;
     }
 
+    pub fn request_shutdown(&mut self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+        self.stop();
+    }
+
     pub fn poll(&mut self) -> Option<Result<CompletedRecording, String>> {
         if !self.worker.as_ref()?.is_finished() {
             return None;
@@ -141,6 +155,7 @@ fn record(
     mut wav: WavRecording<BufWriter<File>>,
     receiver: Receiver<CapturedFrame>,
     mp4: bool,
+    shutdown: Arc<AtomicBool>,
 ) -> Result<CompletedRecording, String> {
     let mut frames = 0;
     let mut write_error = None;
@@ -179,8 +194,9 @@ fn record(
         ));
     }
     finalized.map_err(|e| format!("Cannot finalize {}: {e}", directory.display()))?;
-    if mp4 && frames > 0 {
-        encode_mp4(&directory).map_err(|e| {
+    let mp4 = mp4 && frames > 0 && !shutdown.load(Ordering::Relaxed);
+    if mp4 {
+        encode_mp4(&directory, &shutdown).map_err(|e| {
             format!(
                 "MP4 conversion failed: {e}. PPM frames and sound.wav are retained in {}",
                 directory.display(),
@@ -190,11 +206,11 @@ fn record(
     Ok(CompletedRecording {
         directory,
         frames,
-        mp4: mp4 && frames > 0,
+        mp4,
     })
 }
 
-fn encode_mp4(directory: &Path) -> Result<(), String> {
+fn encode_mp4(directory: &Path, shutdown: &AtomicBool) -> Result<(), String> {
     if directory
         .join("recording.mp4")
         .try_exists()
@@ -215,16 +231,50 @@ fn encode_mp4(directory: &Path) -> Result<(), String> {
         .codec_audio("aac")
         .args(["-ar", "48000", "-movflags", "+faststart", "-shortest"])
         .output("recording.mp4");
-    let output = command
+    let log = File::create_new(directory.join("ffmpeg.log"))
+        .map_err(|e| format!("Cannot create FFmpeg log: {e}"))?;
+    let mut child = command
         .as_inner_mut()
         .current_dir(directory)
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(log))
+        .spawn()
         .map_err(|e| format!("Cannot run FFmpeg: {e}"))?;
-    if !output.status.success() {
+    let status = loop {
+        if shutdown.load(Ordering::Relaxed) {
+            let killed = child.kill();
+            let waited = child.wait();
+            if let Err(error) = killed {
+                eprintln!("ibniz: could not signal recording encoder: {error}");
+            }
+            waited.map_err(|e| format!("Cannot reap cancelled FFmpeg: {e}"))?;
+            return Err("MP4 conversion cancelled for shutdown".into());
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => thread::sleep(Duration::from_millis(10)),
+            Err(error) => {
+                let killed = child.kill();
+                let waited = child.wait();
+                return Err(format!(
+                    "Cannot poll FFmpeg: {error}; cleanup: kill={killed:?}, wait={waited:?}",
+                ));
+            }
+        }
+    };
+    if !status.success() {
+        let mut log = File::open(directory.join("ffmpeg.log"))
+            .map_err(|e| format!("Cannot read FFmpeg error log: {e}"))?;
+        let length = log.metadata().map_err(|e| e.to_string())?.len();
+        log.seek(SeekFrom::Start(length.saturating_sub(8192)))
+            .map_err(|e| e.to_string())?;
+        let mut tail = Vec::new();
+        log.read_to_end(&mut tail).map_err(|e| e.to_string())?;
         return Err(format!(
             "FFmpeg exited with {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim(),
+            status,
+            String::from_utf8_lossy(&tail).trim(),
         ));
     }
     Ok(())
@@ -306,6 +356,47 @@ mod tests {
     }
 
     #[test]
+    fn shutdown_drains_frames_finalizes_wav_and_skips_requested_mp4() {
+        let parent = TestDirectory::new();
+        fs::create_dir(&parent.0).unwrap();
+        let wav = WavRecording::new(BufWriter::new(
+            File::create_new(parent.0.join("sound.wav")).unwrap(),
+        ))
+        .unwrap();
+        let (sender, receiver) = mpsc::sync_channel(3);
+        for value in [123, -456, 789] {
+            let frame = frame(value);
+            sender
+                .send(CapturedFrame {
+                    rgb: frame.rgb,
+                    audio: frame.audio,
+                })
+                .unwrap();
+        }
+        drop(sender);
+        let completed = record(
+            parent.0.clone(),
+            wav,
+            receiver,
+            true,
+            Arc::new(AtomicBool::new(true)),
+        )
+        .unwrap();
+        assert_eq!(completed.frames, 3);
+        assert!(!completed.mp4);
+        let mut expected = Vec::new();
+        export::write_wav(
+            &mut expected,
+            &[vec![123; 1024], vec![-456; 1024], vec![789; 1024]].concat(),
+        )
+        .unwrap();
+        assert_eq!(fs::read(parent.0.join("sound.wav")).unwrap(), expected);
+        assert!(parent.0.join("frame-000002.ppm").exists());
+        assert!(!parent.0.join("recording.mp4").exists());
+        assert!(!parent.0.join("ffmpeg.log").exists());
+    }
+
+    #[test]
     fn takes_use_new_directories_and_empty_recordings_have_valid_wav_files() {
         let parent = TestDirectory::new();
         let first = finish(Recording::start(&parent.0, false).unwrap()).unwrap();
@@ -328,6 +419,7 @@ mod tests {
             frames: 0,
             sender: Some(sender),
             worker: None,
+            shutdown: Arc::new(AtomicBool::new(false)),
         };
         recording.capture(&frame(1)).unwrap();
         assert!(
@@ -396,7 +488,15 @@ mod tests {
             })
             .unwrap();
         drop(sender);
-        let error = record(parent.0.clone(), wav, receiver, true).err().unwrap();
+        let error = record(
+            parent.0.clone(),
+            wav,
+            receiver,
+            true,
+            Arc::new(AtomicBool::new(false)),
+        )
+        .err()
+        .unwrap();
         assert!(error.contains("PPM frames and sound.wav are retained"));
         assert!(parent.0.join("frame-000000.ppm").exists());
         let mut expected = Vec::new();
@@ -406,6 +506,20 @@ mod tests {
             fs::read(parent.0.join("recording.mp4")).unwrap(),
             b"existing video"
         );
+    }
+
+    #[test]
+    #[ignore = "requires FFmpeg installed"]
+    fn ffmpeg_shutdown_cancels_encoder_and_retains_source_media() {
+        let parent = TestDirectory::new();
+        let mut recording = Recording::start(&parent.0, false).unwrap();
+        recording.capture(&frame(123)).unwrap();
+        let completed = finish(recording).unwrap();
+        let error = encode_mp4(&completed.directory, &AtomicBool::new(true)).unwrap_err();
+        assert!(error.contains("cancelled for shutdown"), "{error}");
+        assert!(completed.directory.join("frame-000000.ppm").exists());
+        assert!(completed.directory.join("sound.wav").exists());
+        assert!(completed.directory.join("ffmpeg.log").exists());
     }
 
     #[test]
