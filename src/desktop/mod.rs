@@ -11,6 +11,8 @@ use ibniz::{HEIGHT, Program, Vm, WIDTH};
 use crate::Options;
 use audio::Audio;
 
+const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / 60);
+
 pub fn launch(options: Options, program: Program) -> eframe::Result {
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../assets/ibniz.png"))
         .map_err(|error| eframe::Error::AppCreation(Box::new(error)))?;
@@ -49,6 +51,9 @@ struct App {
     last_instructions: usize,
     slow_video: bool,
     slow_audio: bool,
+    late_ticks: u64,
+    audio_budget_misses: u64,
+    last_tick_duration: Duration,
     cursor: usize,
 }
 
@@ -90,6 +95,9 @@ impl App {
             last_instructions: 0,
             slow_video: false,
             slow_audio: false,
+            late_ticks: 0,
+            audio_budget_misses: 0,
+            last_tick_duration: Duration::ZERO,
             cursor: 0,
         }
     }
@@ -108,6 +116,18 @@ impl App {
         self.texture = None;
         if let Some(audio) = &mut self.audio {
             audio.clear();
+        }
+        self.reset_counters();
+    }
+
+    fn reset_counters(&mut self) {
+        self.late_ticks = 0;
+        self.audio_budget_misses = 0;
+        self.last_tick_duration = Duration::ZERO;
+        self.slow_video = false;
+        self.slow_audio = false;
+        if let Some(audio) = &mut self.audio {
+            audio.reset_counters();
         }
     }
 
@@ -144,6 +164,7 @@ impl App {
                     if let Some(audio) = &mut self.audio {
                         audio.clear();
                     }
+                    self.reset_counters();
                     self.notice = format!("Loaded {}", self.path);
                 }
                 Err(error) => self.error = Some(format!("Cannot load {}: {error}", self.path)),
@@ -178,11 +199,22 @@ impl App {
     }
 
     fn tick(&mut self, ctx: &egui::Context) {
+        if let Some(audio) = &mut self.audio {
+            audio.set_playing(
+                self.running && self.compile_error.is_none() && self.vm.status().audio_enabled,
+            );
+        }
         if self.running && self.compile_error.is_none() && Instant::now() >= self.next_tick {
+            let started = Instant::now();
             let frame = self.vm.render_frame(self.budget);
             self.last_instructions = frame.instructions;
             self.slow_video = !frame.video_complete && !self.vm.status().stopped;
-            self.slow_audio = !frame.audio_complete && self.vm.status().audio_enabled;
+            self.slow_audio = !frame.audio_complete
+                && self.vm.status().audio_enabled
+                && !self.vm.status().stopped;
+            if self.slow_audio {
+                self.audio_budget_misses += 1;
+            }
             let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &frame.rgb);
             if let Some(texture) = &mut self.texture {
                 texture.set(image, egui::TextureOptions::NEAREST);
@@ -195,10 +227,15 @@ impl App {
             }
             if self.vm.status().stopped {
                 self.running = false;
+                if let Some(audio) = &mut self.audio {
+                    audio.set_playing(false);
+                }
             }
-            self.next_tick += Duration::from_secs_f64(1.0 / 60.0);
+            self.last_tick_duration = started.elapsed();
+            self.next_tick += TICK_DURATION;
             // Don't replay an unbounded backlog after dragging or suspending the window.
             if self.next_tick < Instant::now() {
+                self.late_ticks += 1;
                 self.next_tick = Instant::now();
             }
         }
@@ -331,13 +368,36 @@ impl App {
                     if self.slow_audio { "behind" } else { "ready" },
                 ));
             }
+            ui.label(format!(
+                "Late ticks: {} | Last tick: {:.1} ms / 16.7 ms | Audio budget misses: {}",
+                self.late_ticks, self.last_tick_duration.as_secs_f64() * 1000.0,
+                self.audio_budget_misses,
+            )).on_hover_text(
+                "Late ticks missed the 60 Hz deadline (rendering cost or UI/scheduling delays). \
+                 Audio budget misses mean the VM could not generate a full audio tick. \
+                 These are not necessarily device playback gaps. F2 or loading a file resets counters.",
+            );
             if let Some(error) = &self.compile_error {
                 ui.colored_label(Color32::RED, format!("Compile error: {error}. Playback suspended until corrected."));
             }
             if let Some(audio) = &self.audio {
-                let (error, underruns, dropped) = audio.status();
-                if let Some(error) = error { ui.colored_label(Color32::RED, format!("Audio error: {error}")); }
-                ui.small(format!("Audio callback underruns: {underruns}; discarded queued samples: {dropped}"));
+                let status = audio.status();
+                if let Some(error) = status.error { ui.colored_label(Color32::RED, format!("Audio error: {error}")); }
+                let color = if status.underruns > 0 || status.dropped > 0 {
+                    Color32::YELLOW
+                } else {
+                    ui.visuals().text_color()
+                };
+                ui.colored_label(color, format!(
+                    "Audio gaps: {} ({:.1} ms missing) | Discarded queued samples: {}",
+                    status.underruns, status.gap_ms, status.dropped,
+                )).on_hover_text(
+                    "Gaps count output callbacks that ran out of samples during playback; \
+                     one audible interruption may span several callbacks. Startup, pauses and \
+                     compile-error suspension do not count. Discarded samples indicate queue \
+                     overflow. This measures buffer starvation, not clicks in the expression \
+                     itself or every possible device glitch. F2 or loading a file resets counters.",
+                );
             }
             if let Some(error) = &self.error {
                 ui.colored_label(Color32::RED, error);
@@ -536,6 +596,40 @@ mod tests {
         assert!(app.compile_error.is_none());
         app.reset();
         assert_eq!(app.vm.status().frame, 0);
+    }
+
+    #[test]
+    fn playback_diagnostics_count_late_and_budget_limited_ticks_and_reset() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.budget = 1;
+        app.toggle_running();
+        app.next_tick = Instant::now() - Duration::from_secs(1);
+        app.tick(&ctx);
+        assert_eq!(app.late_ticks, 1);
+        assert_eq!(app.audio_budget_misses, 1);
+        assert!(app.slow_audio);
+
+        app.toggle_running();
+        app.tick(&ctx);
+        assert_eq!(app.late_ticks, 1);
+        assert_eq!(app.audio_budget_misses, 1);
+        app.source.push(' ');
+        app.recompile();
+        assert_eq!(app.audio_budget_misses, 1);
+
+        app.toggle_running();
+        app.source = "invalid".into();
+        app.recompile();
+        app.tick(&ctx);
+        assert_eq!(app.audio_budget_misses, 1);
+
+        app.reset();
+        assert_eq!(app.late_ticks, 0);
+        assert_eq!(app.audio_budget_misses, 0);
+        assert_eq!(app.last_tick_duration, Duration::ZERO);
+        assert!(!app.slow_audio);
+        assert!(!app.slow_video);
     }
 
     #[test]
