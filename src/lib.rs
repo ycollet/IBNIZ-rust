@@ -9,5 +9,6 @@ mod vm;
 
 pub use compiler::{CompileError, Instruction, Program};
 pub use vm::{
-    Context, Frame, FrameRender, HEIGHT, MEMORY_WORDS, SAMPLE_RATE, VideoMode, Vm, VmStatus, WIDTH,
+    Context, Frame, FrameRender, HEIGHT, MEMORY_WORDS, SAMPLE_RATE, StackEntry, VideoMode, Vm,
+    VmStatus, WIDTH,
 };

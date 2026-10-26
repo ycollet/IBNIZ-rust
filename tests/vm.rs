@@ -76,6 +76,94 @@ fn numbers_comments_and_data() {
 }
 
 #[test]
+fn instruction_source_ranges_cover_split_numbers_and_skip_comments_and_data() {
+    let source = "\\ \u{e9}\n1..2,d M \\ tail\n$ b101";
+    let program = Program::compile(source).unwrap();
+    let spans: Vec<_> = (0..program.instructions().len())
+        .map(|ip| &source[program.source_range(ip).unwrap()])
+        .collect();
+    assert_eq!(spans, ["1.", ".2", "d", "M", ""]);
+    assert_eq!(program.source_range(4), Some(source.len()..source.len()));
+    assert!(program.source_range(5).is_none());
+    for source in ["", "$F", "\\ comment"] {
+        let program = Program::compile(source).unwrap();
+        assert_eq!(program.instructions(), &[Instruction::End]);
+        assert_eq!(program.source_range(0), Some(source.len()..source.len()));
+    }
+    let program = Program::compile("...").unwrap();
+    assert_eq!(
+        (0..3)
+            .map(|ip| program.source_range(ip).unwrap())
+            .collect::<Vec<_>>(),
+        [0..1, 1..2, 2..3]
+    );
+}
+
+#[test]
+fn debugger_stack_inspection_is_read_only_context_specific_and_cyclic() {
+    let mut vm = Vm::new(Program::compile("1 P M 2 P").unwrap());
+    assert_eq!(vm.data_stack_entry(Context::Video, 0).address, 0xe0003);
+    assert_eq!(vm.data_stack_entry(Context::Video, 4).address, 0xfffff);
+    assert_eq!(vm.data_stack_entry(Context::Audio, 2).address, 0xdffff);
+    assert_eq!(vm.return_stack_entry(Context::Video, 1).address, 0xcffff);
+    assert_eq!(vm.return_stack_entry(Context::Audio, 1).address, 0xcbfff);
+    vm.memory_mut()[0xcffff] = -123;
+    assert_eq!(vm.return_stack_entry(Context::Video, 1).value, -123);
+    vm.step();
+    assert_eq!(vm.data_stack_entry(Context::Video, 0).value, 1 << 16);
+    vm.step();
+    assert_eq!(vm.status().video_return_stack_pointer, 1);
+    assert_eq!(vm.return_stack_entry(Context::Video, 0).value, 1);
+    let _job = vm.begin_frame(1000);
+    vm.step();
+    assert_eq!(vm.status().context, Context::Audio);
+    vm.step();
+    vm.step();
+    assert_eq!(vm.status().audio_return_stack_pointer, 1);
+    assert_eq!(vm.return_stack_entry(Context::Audio, 0).value, 2);
+    assert_eq!(vm.return_stack_entry(Context::Video, 0).value, 1);
+    let before = vm.status();
+    let memory = vm.memory().to_vec();
+    for context in [Context::Video, Context::Audio] {
+        for depth in [0, 1, 16, 0x20000, usize::MAX] {
+            vm.data_stack_entry(context, depth);
+            vm.return_stack_entry(context, depth);
+        }
+    }
+    assert_eq!(
+        vm.status().instructions_executed,
+        before.instructions_executed
+    );
+    assert_eq!(vm.status().instruction_pointer, before.instruction_pointer);
+    assert_eq!(vm.memory(), memory);
+}
+
+#[test]
+fn current_instruction_mapping_follows_steps_jumps_live_compile_and_reset() {
+    let mut vm = Vm::new(Program::compile("\\ header\n1 T").unwrap());
+    assert_eq!(vm.current_instruction(), Instruction::Immediate(1 << 16));
+    assert_eq!(vm.instruction_source_range(), 9..10);
+    vm.step();
+    assert_eq!(vm.current_instruction(), Instruction::Op(b'T'));
+    assert_eq!(vm.instruction_source_range(), 11..12);
+    vm.step();
+    assert!(vm.status().stopped);
+    assert_eq!(vm.instruction_source_range(), 11..12);
+    vm.reset();
+    assert_eq!(vm.instruction_source_range(), 9..10);
+    vm.replace_program(Program::compile("0J").unwrap());
+    vm.step();
+    assert_eq!(vm.instruction_source_range(), 1..2);
+    vm.step();
+    assert_eq!(vm.instruction_source_range(), 0..1);
+    vm.replace_program(Program::compile("\\ changed\nA").unwrap());
+    assert_eq!(vm.instruction_source_range(), 10..11);
+    vm.step();
+    assert_eq!(vm.current_instruction(), Instruction::End);
+    assert_eq!(vm.instruction_source_range(), 11..11);
+}
+
+#[test]
 fn whitespace_separates_numbers() {
     assert_eq!(run("1 2+T").top(), 3 << 16);
     assert_eq!(run("12T").top(), 0x12 << 16);

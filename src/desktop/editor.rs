@@ -82,6 +82,7 @@ pub fn highlight(
     visuals: &egui::Visuals,
     font: FontId,
     error: Option<&CompileError>,
+    current: Option<Range<usize>>,
 ) -> LayoutJob {
     let mut job = LayoutJob::default();
     let error_range = error.and_then(|error| {
@@ -110,17 +111,35 @@ pub fn highlight(
             color,
             ..Default::default()
         };
-        if let Some(error) = &error_range
-            && range.contains(&error.start)
-        {
-            job.append(&source[range.start..error.start], 0.0, format.clone());
+        let mut cuts = [range.start; 6];
+        cuts[1] = range.end;
+        for (index, marker) in [&error_range, &current].into_iter().enumerate() {
+            if let Some(marker) = marker {
+                cuts[2 + index * 2] = marker.start.clamp(range.start, range.end);
+                cuts[3 + index * 2] = marker.end.clamp(range.start, range.end);
+            }
+        }
+        cuts.sort_unstable();
+        for pair in cuts.windows(2).filter(|pair| pair[0] != pair[1]) {
             let mut marked = format.clone();
-            marked.underline = Stroke::new(1.5_f32, visuals.error_fg_color);
-            marked.background = visuals.error_fg_color.gamma_multiply(0.15);
-            job.append(&source[error.clone()], 0.0, marked);
-            job.append(&source[error.end..range.end], 0.0, format);
-        } else {
-            job.append(&source[range], 0.0, format);
+            if current
+                .as_ref()
+                .is_some_and(|current| current.contains(&pair[0]))
+            {
+                marked.background = if visuals.dark_mode {
+                    Color32::from_rgb(90, 70, 15)
+                } else {
+                    Color32::from_rgb(255, 235, 150)
+                };
+            }
+            if error_range
+                .as_ref()
+                .is_some_and(|error| error.contains(&pair[0]))
+            {
+                marked.underline = Stroke::new(1.5_f32, visuals.error_fg_color);
+                marked.background = visuals.error_fg_color.gamma_multiply(0.15);
+            }
+            job.append(&source[pair[0]..pair[1]], 0.0, marked);
         }
     }
     job
@@ -161,12 +180,42 @@ mod tests {
     }
 
     #[test]
+    fn instruction_highlight_splits_adjacent_numbers_without_changing_text() {
+        let source = "1..2 d";
+        let program = ibniz::Program::compile(source).unwrap();
+        for ip in 0..program.instructions().len() {
+            let range = program.source_range(ip).unwrap();
+            let job = highlight(
+                source,
+                &egui::Visuals::dark(),
+                FontId::monospace(14.0),
+                None,
+                Some(range.clone()),
+            );
+            let marked: String = job
+                .sections
+                .iter()
+                .filter(|section| section.format.background != Color32::TRANSPARENT)
+                .map(|section| &job.text[section.byte_range.clone()])
+                .collect();
+            assert_eq!(job.text, source);
+            assert_eq!(marked, &source[range]);
+        }
+    }
+
+    #[test]
     fn diagnostics_use_unicode_columns_and_mark_only_the_offending_character() {
         let source = "\\ \u{e9}\n1 \u{2603} 2";
         let error = ibniz::Program::compile(source).unwrap_err();
         assert_eq!(location(source, error.offset), (2, 3));
         for visuals in [egui::Visuals::dark(), egui::Visuals::light()] {
-            let job = highlight(source, &visuals, FontId::monospace(14.0), Some(&error));
+            let job = highlight(
+                source,
+                &visuals,
+                FontId::monospace(14.0),
+                Some(&error),
+                None,
+            );
             assert_eq!(job.text, source);
             let marked: Vec<_> = job
                 .sections

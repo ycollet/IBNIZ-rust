@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::{Instruction, Program};
 
 pub const WIDTH: usize = 256;
@@ -49,10 +51,18 @@ pub struct VmStatus {
     pub instruction_pointer: usize,
     pub video_stack_pointer: usize,
     pub audio_stack_pointer: usize,
+    pub video_return_stack_pointer: usize,
+    pub audio_return_stack_pointer: usize,
     pub frame: u32,
     pub stopped: bool,
     pub audio_enabled: bool,
     pub instructions_executed: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StackEntry {
+    pub address: usize,
+    pub value: i32,
 }
 
 pub struct Frame {
@@ -238,6 +248,8 @@ impl Vm {
             instruction_pointer: self.ip,
             video_stack_pointer: self.registers[0].sp,
             audio_stack_pointer: self.registers[1].sp,
+            video_return_stack_pointer: self.registers[0].rsp,
+            audio_return_stack_pointer: self.registers[1].rsp,
             frame: self.frame,
             stopped: self.stopped,
             audio_enabled: self.audio_enabled,
@@ -251,6 +263,43 @@ impl Vm {
 
     pub fn memory_mut(&mut self) -> &mut [i32] {
         &mut self.memory
+    }
+
+    /// The next instruction to execute, or T itself after termination.
+    pub fn current_instruction(&self) -> Instruction {
+        self.program.code[self.ip]
+    }
+
+    pub fn instruction_source_range(&self) -> Range<usize> {
+        self.program.source_ranges[self.ip].clone()
+    }
+
+    /// Read a cyclic data-stack slot, with depth zero at the selected context's SP.
+    /// These stacks have no tracked logical depth; old slots remain inspectable.
+    pub fn data_stack_entry(&self, context: Context, depth: usize) -> StackEntry {
+        let (base, mask) = match context {
+            Context::Video => (VIDEO_BASE, 0x1ffff),
+            Context::Audio => (AUDIO_BASE, 0xffff),
+        };
+        let address = base + (self.registers[context as usize].sp.wrapping_sub(depth) & mask);
+        StackEntry {
+            address,
+            value: self.memory[address],
+        }
+    }
+
+    /// Read a cyclic return-stack slot. Values are raw addresses/counts, not
+    /// necessarily 16.16 numbers or a conventional call stack.
+    pub fn return_stack_entry(&self, context: Context, depth: usize) -> StackEntry {
+        let base = match context {
+            Context::Video => 0xcc000,
+            Context::Audio => 0xc8000,
+        };
+        let address = base + (self.registers[context as usize].rsp.wrapping_sub(depth) & 0x3fff);
+        StackEntry {
+            address,
+            value: self.memory[address],
+        }
     }
 
     /// MMKK.YYXX: buttons/modifiers, last character, mouse Y, mouse X.

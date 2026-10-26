@@ -67,13 +67,15 @@ rsvg-convert --width 256 --height 256 --output assets/ibniz.png assets/ibniz.svg
 |---------|--------|
 | F1 | Run / pause |
 | F2 | Reset memory, stacks and time |
+| F3 | Step one VM instruction while paused, with no active/finishing recording |
 | F12 | Show / hide help (shortcuts and instruction reference) |
 | Tab | Show / hide editor |
 | Ctrl/Cmd+S | Save to the file path above the editor |
 | Ctrl+Up / Ctrl+Down | Increment / decrement the hex digit under the cursor, with carry |
-| Esc | Cancel example loading, close help or the example browser, otherwise exit |
+| Esc | Cancel confirmation, close help, the example browser or debugger, otherwise exit |
 | Load / Save | Open / save the specified UTF-8 `.ib` file |
 | Examples | Browse, search and load bundled programs |
+| Debugger | Inspect stacks/memory and single-step execution |
 
 The editor supports platform-standard selection, clipboard, word navigation
 and undo/redo. Theme-aware syntax colors distinguish hexadecimal numbers,
@@ -132,6 +134,37 @@ are retained. An active recording stays armed but capture pauses until Run.
 Programs, metadata and license notices are embedded in the executable, so the
 browser works offline and outside the repository. Only opening external source
 links requires a web browser/network connection.
+
+### VM debugger
+
+Click **Debugger**, pause with **F1**, then use **Step (F3)** or **F3** to
+execute exactly one instruction. A number literal is one instruction, not one
+character; the implicit end-of-program operation also counts as an instruction.
+Steps are silent and refresh the video preview without resetting the VM.
+They use the normal audio/video scheduler, preserving an in-progress tick;
+frame time advances only when a full tick completes or reaches its instruction
+budget. **Run** resumes from the same state. A `T` instruction still terminates
+execution; use **F2** before stepping again.
+
+The debugger shows the active context, instruction pointer, execution count
+and next instruction. Choose **Active**, **Video** or **Audio** to inspect
+either context's data and return stacks, with their SP/RSP and up to 64 slots
+listed top-first. These are cyclic buffers, not bounded stacks: old slots stay
+visible and the displayed row count is not a logical stack depth. Return-stack
+values are raw addresses/counts, not necessarily fixed-point numbers.
+
+The read-only memory viewer covers all **00000-FFFFF physical word addresses**
+in 128-word pages. Enter a hexadecimal address, navigate pages, or jump to the
+selected context's **SP/RSP**. Values appear as raw eight-digit hexadecimal;
+hover for signed-integer and 16.16 interpretations.
+
+While the debugger is open, the editor highlights the **next instruction**.
+An EOF marker represents the implicit end instruction, and the line/column
+label locates it even after comments or a data section. Invalid drafts suppress
+the instruction highlight rather than pointing into the last valid program.
+Stack and memory inspection remain available while running or recording,
+but stepping requires paused playback, valid source and a fully finished
+recording. Debugger window/view choices are not part of NSM session state.
 
 ### Playback tuning
 

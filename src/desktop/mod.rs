@@ -1,4 +1,5 @@
 mod audio;
+mod debugger;
 mod editor;
 mod examples;
 mod nsm;
@@ -94,6 +95,7 @@ struct App {
     nsm_label: String,
     nsm_error: Option<String>,
     nsm_quitting: bool,
+    debugger: debugger::Debugger,
 }
 
 impl App {
@@ -157,6 +159,7 @@ impl App {
             nsm_label: String::new(),
             nsm_error: None,
             nsm_quitting: false,
+            debugger: debugger::Debugger::default(),
         }
     }
 
@@ -178,6 +181,54 @@ impl App {
             audio.clear();
         }
         self.reset_counters();
+    }
+
+    fn can_step(&self) -> bool {
+        !self.running
+            && self.compile_error.is_none()
+            && self.recording.is_none()
+            && !self.vm.status().stopped
+            && self.pending_action.is_none()
+            && !self.nsm_quitting
+            && !self.close_after_recording
+    }
+
+    fn step_instruction(&mut self, ctx: &egui::Context) {
+        if !self.can_step() {
+            self.error = Some("To step: pause playback, correct compile errors, finish recording and reset a terminated VM first.".into());
+            return;
+        }
+        self.debugger.open = true;
+        if self.render.is_none() {
+            self.render = Some(self.vm.begin_frame(self.budget));
+            self.render_work = Duration::ZERO;
+        }
+        let started = Instant::now();
+        let frame = self
+            .render
+            .as_mut()
+            .expect("debugger tick")
+            .advance(&mut self.vm, 1);
+        self.render_work += started.elapsed();
+        self.last_instructions = 1;
+        if let Some(frame) = frame {
+            self.render = None;
+            self.last_instructions = frame.instructions;
+            self.last_tick_duration = self.render_work;
+            self.render_work = Duration::ZERO;
+        }
+        if let Some(audio) = &mut self.audio {
+            audio.clear();
+            audio.set_playing(false);
+        }
+        let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &self.vm.rgb());
+        if let Some(texture) = &mut self.texture {
+            texture.set(image, egui::TextureOptions::NEAREST);
+        } else {
+            self.texture =
+                Some(ctx.load_texture("ibniz-video", image, egui::TextureOptions::NEAREST));
+        }
+        ctx.request_repaint();
     }
 
     fn reset_counters(&mut self) {
@@ -638,6 +689,9 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F2)) {
             self.reset();
         }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F3)) {
+            self.step_instruction(ctx);
+        }
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab)) {
             self.editor = !self.editor;
         }
@@ -649,6 +703,8 @@ impl App {
                 self.help = false;
             } else if self.example_browser.open {
                 self.example_browser.open = false;
+            } else if self.debugger.open {
+                self.debugger.open = false;
             } else {
                 return true;
             }
@@ -843,6 +899,9 @@ impl App {
                 }
                 if ui.button("Examples").clicked() {
                     self.example_browser.open = !self.example_browser.open;
+                }
+                if ui.button("Debugger").clicked() {
+                    self.debugger.open = !self.debugger.open;
                 }
                 ui.add(egui::Slider::new(&mut self.volume, 0.0..=1.0).text("Volume"));
                 ui.menu_button("Audio", |ui| {
@@ -1054,10 +1113,14 @@ impl App {
                 }
                 egui::ScrollArea::both().show(ui, |ui| {
                     let error = self.compile_error.as_ref();
+                    let current = (self.debugger.open && self.source == self.compiled_source)
+                        .then(|| self.vm.instruction_source_range());
+                    let compiled_source = &self.compiled_source;
                     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap_width: f32| {
                         let mut job = editor::highlight(
                             buffer.as_str(), ui.visuals(),
                             egui::TextStyle::Monospace.resolve(ui.style()), error,
+                            current.clone().filter(|_| buffer.as_str() == compiled_source),
                         );
                         job.wrap.max_width = wrap_width;
                         ui.fonts_mut(|fonts| fonts.layout_job(job))
@@ -1068,6 +1131,22 @@ impl App {
                             .id(source_id).show(ui);
                     if let Some(cursor) = output.cursor_range { self.cursor = cursor.primary.index; }
                     if output.response.changed() { self.recompile(); }
+                    if self.debugger.open {
+                        if self.source == self.compiled_source {
+                            let range = self.vm.instruction_source_range();
+                            let (line, column) = editor::location(&self.source, range.start);
+                            ui.small(format!("Next instruction: {} | line {line}, column {column}",
+                                debugger::instruction_label(self.vm.current_instruction())));
+                            if range.is_empty() {
+                                let position = output.galley.pos_from_cursor(egui::text::CCursor::new(self.source.chars().count()))
+                                    .translate(output.galley_pos.to_vec2());
+                                ui.painter().line_segment([position.left_top(), position.left_bottom()],
+                                    egui::Stroke::new(2.0_f32, Color32::YELLOW));
+                            }
+                        } else {
+                            ui.small("Instruction highlight unavailable: the editor differs from the running program.");
+                        }
+                    }
                     if let Some(error) = &self.compile_error {
                         let (line, column) = editor::location(&self.source, error.offset);
                         let diagnostic = format!("Line {line}, column {column}: {}", error.message);
@@ -1106,13 +1185,17 @@ impl App {
         if let Some(example) = self.example_browser.show(ctx, managed) {
             self.request_example(example);
         }
+        let can_step = self.can_step();
+        if self.debugger.show(ctx, &self.vm, can_step) {
+            self.step_instruction(ctx);
+        }
         egui::Window::new("IBNIZ Help (F12)")
             .open(&mut self.help)
             .default_width(520.0)
             .vscroll(true)
             .show(ctx, |ui| {
                 ui.heading("Keyboard shortcuts");
-                ui.label("F12: show / hide help\nEsc: cancel example loading, close help or examples, otherwise exit\nF1: run / pause\nF2: reset memory, stacks and time\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
+                ui.label("F12: show / hide help\nEsc: cancel confirmation, close help, examples or debugger, otherwise exit\nF1: run / pause\nF2: reset memory, stacks and time\nF3: step one VM instruction (paused, no recording)\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
                 ui.label("Syntax colors distinguish numbers, comments, control flow, stack/media instructions and data modes. Compile errors underline the offending character; hover it for details, or read the line/column message below the editor.");
                 ui.label("Loading a file or example and exiting ask before discarding unsaved changes. Cancel to save first. Escape cancels the confirmation. NSM termination always exits without a dialog.");
@@ -1121,6 +1204,7 @@ impl App {
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.label("Recording: choose an output folder and Start/Stop to save PPM frames and full-scale, unfiltered WAV audio. Run/pause and compile errors pause capture. Optional MP4 uses installed FFmpeg after Stop; original files are retained.");
                 ui.label("Playback: adjust preview refresh, instructions per VM tick, UI work slices and audio buffering without resetting the VM. Preview refresh affects only the display, not recordings. Audio rebuffering uses short fades; sustained overload can still cause gaps.");
+                ui.label("Debugger: pause, then Step/F3 for one instruction with normal media scheduling and no sound. Inspect either context's cyclic data/return stacks and all physical memory in read-only pages. Hover values for signed/16.16 forms. The next instruction is highlighted in the editor; implicit end-of-program is marked at EOF. Fix compile errors and finish recording before stepping.");
                 ui.separator();
                 ui.heading("IBNIZ instruction reference");
                 ui.label("Numbers are uppercase hexadecimal, using 16.16 fixed point. Separate numbers with spaces or commas; use a dot for fractions.");
@@ -1471,6 +1555,145 @@ mod tests {
         app.toggle_running();
         complete_tick(&mut app, &ctx);
         assert_eq!(app.vm.status().frame, 1);
+    }
+
+    #[test]
+    fn debugger_buttons_and_f3_execute_exactly_one_instruction_and_highlight_the_next() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.replace_source("1 2+T".into(), Program::compile("1 2+T").unwrap());
+        click_label(&mut app, &ctx, "Debugger");
+        assert!(app.debugger.open);
+        assert_eq!(app.vm.status().instructions_executed, 0);
+        click_label(&mut app, &ctx, "Step (F3)");
+        assert_eq!(app.vm.status().instructions_executed, 1);
+        assert_eq!(app.vm.top(), 1 << 16);
+        assert_eq!(app.vm.instruction_source_range(), 2..3);
+        assert!(!app.running);
+        assert_eq!(app.vm.status().frame, 0);
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        assert!(output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::epaint::Shape::Text(text)
+                if text.galley.text() == app.source && text.galley.job.sections.iter().any(|section|
+                    section.byte_range == (2..3) && section.format.background != Color32::TRANSPARENT))
+        }));
+        let _ = ctx.run(
+            egui::RawInput {
+                events: [true, false]
+                    .into_iter()
+                    .map(|pressed| egui::Event::Key {
+                        key: Key::F3,
+                        physical_key: None,
+                        pressed,
+                        repeat: false,
+                        modifiers: Modifiers::NONE,
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+            |ctx| app.ui(ctx),
+        );
+        assert_eq!(app.vm.status().instructions_executed, 2);
+        assert_eq!(app.vm.top(), 2 << 16);
+        click_label(&mut app, &ctx, "Step (F3)");
+        assert_eq!(app.vm.top(), 3 << 16);
+        click_label(&mut app, &ctx, "Step (F3)");
+        assert!(app.vm.status().stopped);
+        let before = app.vm.status().instructions_executed;
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, before);
+        assert!(app.error.is_some());
+        app.reset();
+        assert!(app.can_step());
+        assert_eq!(app.vm.status().instruction_pointer, 0);
+    }
+
+    #[test]
+    fn debugger_steps_resume_partial_ticks_without_restarting_them() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.replace_source("[1]".into(), Program::compile("[1]").unwrap());
+        app.budget = 50_000;
+        app.slice_ms = 0;
+        app.toggle_running();
+        app.tick(&ctx);
+        assert_eq!(app.render.as_ref().unwrap().instructions(), 1024);
+        let before = app.vm.status().instructions_executed;
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, before);
+        app.toggle_running();
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, before + 1);
+        assert_eq!(app.render.as_ref().unwrap().instructions(), 1025);
+        assert!(app.texture.is_some());
+        app.toggle_running();
+        app.tick(&ctx);
+        assert_eq!(app.render.as_ref().unwrap().instructions(), 2049);
+    }
+
+    #[test]
+    fn debugger_steps_follow_media_scheduling_and_match_uninterrupted_ticks() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.budget = 64;
+        let mut reference = Vm::new(Program::compile(&app.source).unwrap());
+        let mut saw_audio = false;
+        for target in 1..=2 {
+            reference.render_frame(app.budget);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while app.vm.status().frame < target {
+                let before = app.vm.status().instructions_executed;
+                app.step_instruction(&ctx);
+                assert_eq!(app.vm.status().instructions_executed, before + 1);
+                saw_audio |= app.vm.status().context == ibniz::Context::Audio;
+                assert!(Instant::now() < deadline);
+            }
+            assert_eq!(app.vm.memory(), reference.memory());
+            assert_eq!(
+                app.vm.status().instruction_pointer,
+                reference.status().instruction_pointer
+            );
+            assert_eq!(app.vm.status().context, reference.status().context);
+            assert!(app.render.is_none());
+            assert!(!app.running);
+        }
+        assert!(saw_audio);
+    }
+
+    #[test]
+    fn debugger_never_steps_invalid_drafts_or_active_and_finishing_recordings() {
+        let directory = nsm::tests::TestDirectory::new();
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.debugger.open = true;
+        app.source = "invalid".into();
+        app.recompile();
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, 0);
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        assert!(output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::epaint::Shape::Text(text)
+                if text.galley.text().starts_with("Instruction highlight unavailable"))
+        }));
+        app.source = app.compiled_source.clone();
+        app.recompile();
+        app.recording_directory = directory.0.to_string_lossy().into_owned();
+        app.start_recording();
+        assert!(!app.can_step());
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, 0);
+        app.stop_recording();
+        assert!(!app.can_step());
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, 0);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.recording.is_some() {
+            app.poll_recording(&ctx);
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        app.step_instruction(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, 1);
     }
 
     #[test]

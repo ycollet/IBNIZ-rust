@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, ops::Range};
 
 /// Parsed instruction addresses include the implicit end-of-program instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -13,6 +13,7 @@ pub struct Program {
     pub(crate) code: Vec<Instruction>,
     pub(crate) hints: Vec<usize>,
     pub(crate) data: Vec<bool>,
+    pub(crate) source_ranges: Vec<Range<usize>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,6 +34,7 @@ impl Error for CompileError {}
 impl Program {
     pub fn compile(source: &str) -> Result<Self, CompileError> {
         let mut code = Vec::new();
+        let mut source_ranges = Vec::new();
         let mut data = Vec::new();
         let mut chars = source.char_indices().peekable();
         let mut data_mode = false;
@@ -74,10 +76,14 @@ impl Program {
                 let mut fractional = false;
                 let mut shift: u32 = 16;
                 let mut digit = ch;
+                let mut start = offset;
+                let mut digit_offset = offset;
                 loop {
                     if digit == '.' {
                         if fractional {
                             code.push(Instruction::Immediate(value as i32));
+                            source_ranges.push(start..digit_offset);
+                            start = digit_offset;
                             value = 0;
                         }
                         fractional = true;
@@ -93,21 +99,25 @@ impl Program {
                         }
                     }
                     match chars.peek() {
-                        Some(&(_, next)) if is_number(next) => {
+                        Some(&(next_offset, next)) if is_number(next) => {
                             digit = next;
+                            digit_offset = next_offset;
                             chars.next();
                         }
                         _ => break,
                     }
                 }
                 code.push(Instruction::Immediate(value as i32));
+                source_ranges.push(start..digit_offset + digit.len_utf8());
             } else if "+-*/%q&|^rl~sa<>=dpxv)(zMwT@!?:;ijX[L]J{}VRPUG".contains(ch) {
                 code.push(Instruction::Op(ch as u8));
+                source_ranges.push(offset..offset + ch.len_utf8());
             } else {
                 return Err(invalid(offset, ch));
             }
         }
         code.push(Instruction::End);
+        source_ranges.push(source.len()..source.len());
         let mut hints = vec![0; code.len()];
         // The reference parser deliberately uses flat, not nested, skip points.
         let (mut conditional, mut endif, mut ret, mut media) = (0, 0, 0, 0);
@@ -132,7 +142,12 @@ impl Program {
             }
         }
         hints[code.len() - 1] = media;
-        Ok(Self { code, hints, data })
+        Ok(Self {
+            code,
+            hints,
+            data,
+            source_ranges,
+        })
     }
 
     pub fn instructions(&self) -> &[Instruction] {
@@ -141,6 +156,12 @@ impl Program {
 
     pub fn data_bits(&self) -> usize {
         self.data.len()
+    }
+
+    /// UTF-8 byte range of an instruction. The implicit End has an empty range
+    /// at source EOF; comments and data do not produce instructions.
+    pub fn source_range(&self, instruction: usize) -> Option<Range<usize>> {
+        self.source_ranges.get(instruction).cloned()
     }
 
     pub(crate) fn read_bits(&self, pointer: &mut usize, count: u32) -> u32 {

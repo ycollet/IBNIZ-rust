@@ -22,10 +22,10 @@ recording controls. The remaining improvements are not ranked.
 
 ## VM debugger
 
-- [ ] Support single-step execution.
-- [ ] Inspect data and return stacks.
-- [ ] Add a memory viewer.
-- [ ] Highlight the current instruction in the source editor.
+- [x] Support single-step execution.
+- [x] Inspect data and return stacks.
+- [x] Add a memory viewer.
+- [x] Highlight the current instruction in the source editor.
 
 ## Playback improvements
 
