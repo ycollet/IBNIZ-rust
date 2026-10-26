@@ -12,6 +12,45 @@ fn run(source: &str) -> Vm {
 }
 
 #[test]
+fn sliced_frames_match_uninterrupted_rendering_and_instruction_limits() {
+    for (source, budget) in [
+        ("^xp M d3r15&*", 1_000_000),
+        ("^xp", 100_000),
+        ("[1]", 10_000),
+        ("T", 100),
+        ("^xp M d3r15&*", 0),
+    ] {
+        let program = Program::compile(source).unwrap();
+        let mut reference = Vm::new(program.clone());
+        let mut sliced = Vm::new(program);
+        for _ in 0..3 {
+            let expected = reference.render_frame(budget);
+            let mut job = sliced.begin_frame(budget);
+            assert_eq!(job.budget(), budget);
+            let actual = loop {
+                let before = sliced.status().instructions_executed;
+                let frame = job.advance(&mut sliced, 257);
+                assert!(sliced.status().instructions_executed - before <= 257);
+                if let Some(frame) = frame {
+                    break frame;
+                }
+            };
+            assert_eq!(actual.rgb, expected.rgb, "{source}");
+            assert_eq!(actual.audio, expected.audio, "{source}");
+            assert_eq!(actual.instructions, expected.instructions, "{source}");
+            assert_eq!(actual.video_complete, expected.video_complete, "{source}");
+            assert_eq!(actual.audio_complete, expected.audio_complete, "{source}");
+            assert_eq!(sliced.memory(), reference.memory(), "{source}");
+            assert_eq!(
+                sliced.status().instruction_pointer,
+                reference.status().instruction_pointer
+            );
+            assert_eq!(sliced.status().frame, reference.status().frame);
+        }
+    }
+}
+
+#[test]
 fn numbers_comments_and_data() {
     let p = Program::compile("ABCD.1234,1 2\n\\ comment without trailing newline").unwrap();
     assert_eq!(

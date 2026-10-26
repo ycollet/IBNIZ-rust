@@ -8,11 +8,12 @@ license = "Zlib"
 
 [features]
 default = ["desktop"]
-desktop = ["dep:eframe", "dep:cpal"]
+desktop = ["dep:eframe", "dep:cpal", "dep:ffmpeg-sidecar"]
 
 [dependencies]
 eframe = { version = "0.33", optional = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 cpal = { version = "0.16", optional = true }
+ffmpeg-sidecar = { version = "2", optional = true, default-features = false }
 
 [profile.release]
 lto = "thin"

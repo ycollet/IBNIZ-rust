@@ -17,8 +17,8 @@ recording controls. The remaining improvements are not ranked.
 
 ## Recording controls
 
-- [ ] Export video and audio directly from the GUI.
-- [ ] Optionally use FFmpeg to create MP4 recordings.
+- [x] Export video and audio directly from the GUI.
+- [x] Optionally use FFmpeg to create MP4 recordings.
 
 ## VM debugger
 
@@ -29,9 +29,9 @@ recording controls. The remaining improvements are not ranked.
 
 ## Playback improvements
 
-- [ ] Improve handling of computationally expensive programs.
-- [ ] Improve audio underrun handling.
-- [ ] Expose adjustable quality and instruction budgets in the GUI.
+- [x] Improve handling of computationally expensive programs.
+- [x] Improve audio underrun handling.
+- [x] Expose adjustable quality and instruction budgets in the GUI.
 
 ## Distribution packages
 

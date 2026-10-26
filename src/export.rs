@@ -1,5 +1,5 @@
 //! Dependency-free PPM image and signed 16-bit mono WAV output.
-use std::io::{self, Write};
+use std::io::{self, Seek, SeekFrom, Write};
 
 use crate::{HEIGHT, SAMPLE_RATE, WIDTH};
 
@@ -73,6 +73,46 @@ pub fn write_wav(writer: impl Write, samples: &[i16]) -> io::Result<()> {
     Ok(())
 }
 
+/// Streams a recording of unknown duration, then rewrites its WAV header.
+/// The writer must start at offset zero. Call `finish` to finalize the file.
+#[must_use = "call finish to finalize the WAV header and flush the recording"]
+pub struct WavRecording<W: Write + Seek> {
+    writer: W,
+    bytes: u32,
+}
+
+impl<W: Write + Seek> WavRecording<W> {
+    pub fn new(mut writer: W) -> io::Result<Self> {
+        writer.seek(SeekFrom::Start(0))?;
+        write_wav_header(&mut writer, 0)?;
+        Ok(Self { writer, bytes: 0 })
+    }
+
+    pub fn write_samples(&mut self, samples: &[i16]) -> io::Result<()> {
+        let bytes = samples
+            .len()
+            .checked_mul(2)
+            .and_then(|n| u32::try_from(n).ok())
+            .and_then(|n| self.bytes.checked_add(n))
+            .filter(|n| *n <= u32::MAX - 36)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "audio exceeds WAV size limit")
+            })?;
+        for sample in samples {
+            self.writer.write_all(&sample.to_le_bytes())?;
+        }
+        self.bytes = bytes;
+        Ok(())
+    }
+
+    pub fn finish(mut self) -> io::Result<W> {
+        self.writer.seek(SeekFrom::Start(0))?;
+        write_wav_header(&mut self.writer, self.bytes)?;
+        self.writer.flush()?;
+        Ok(self.writer)
+    }
+}
+
 fn write_wav_header(writer: &mut impl Write, bytes: u32) -> io::Result<()> {
     writer.write_all(b"RIFF")?;
     writer.write_all(&(36 + bytes).to_le_bytes())?;
@@ -87,4 +127,21 @@ fn write_wav_header(writer: &mut impl Write, bytes: u32) -> io::Result<()> {
     writer.write_all(b"data")?;
     writer.write_all(&bytes.to_le_bytes())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn recording_checks_the_wav_size_limit_before_writing_more_samples() {
+        let mut wav = WavRecording::new(Cursor::new(Vec::new())).unwrap();
+        wav.bytes = u32::MAX - 37;
+        let before = wav.writer.get_ref().clone();
+        let error = wav.write_samples(&[123]).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(wav.writer.get_ref(), &before);
+        assert_eq!(wav.bytes, u32::MAX - 37);
+    }
 }

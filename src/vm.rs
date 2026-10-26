@@ -67,6 +67,87 @@ pub struct Frame {
     pub audio_complete: bool,
 }
 
+/// A resumable, instruction-bounded tick. Resume on the same VM without calling
+/// `step`, `reset` or another frame renderer between slices. Live input and
+/// program replacement are supported; discard this job when resetting the VM.
+pub struct FrameRender {
+    budget: usize,
+    instructions: usize,
+    audio_start: usize,
+    audio_target: u64,
+    audio: Option<Vec<i16>>,
+    audio_complete: bool,
+    finished: bool,
+}
+
+impl FrameRender {
+    pub fn instructions(&self) -> usize {
+        self.instructions
+    }
+
+    pub fn budget(&self) -> usize {
+        self.budget
+    }
+
+    /// Executes at most `slice_instructions` instructions. Returns the completed
+    /// tick only after its normal completion or total instruction-budget limit.
+    /// A completed job must not be resumed.
+    pub fn advance(&mut self, vm: &mut Vm, slice_instructions: usize) -> Option<Frame> {
+        assert!(!self.finished, "cannot resume a completed frame");
+        let mut remaining = slice_instructions;
+        if self.audio.is_none() {
+            while vm.audio_enabled && !vm.stopped && self.instructions < self.budget / 4 {
+                let writer =
+                    u64::from(vm.audio_time / 64) * 65536 + vm.registers[1].previous_sp as u64;
+                if writer > self.audio_target {
+                    break;
+                }
+                if remaining == 0 {
+                    return None;
+                }
+                vm.step();
+                self.instructions += 1;
+                remaining -= 1;
+            }
+            let writer = u64::from(vm.audio_time / 64) * 65536 + vm.registers[1].previous_sp as u64;
+            self.audio_complete = vm.audio_enabled && writer > self.audio_target;
+            self.audio = Some(
+                (0..1024)
+                    .map(|i| {
+                        if vm.audio_enabled {
+                            (vm.memory[AUDIO_BASE + ((self.audio_start + i) & 0xffff)] as u16
+                                ^ 0x8000) as i16
+                        } else {
+                            0
+                        }
+                    })
+                    .collect(),
+            );
+            vm.audio_read = (vm.audio_read + 1024) & 0xffff;
+            vm.preferred = Context::Video;
+            vm.page_flipped = false;
+        }
+        while !vm.stopped && !vm.page_flipped && self.instructions < self.budget {
+            if remaining == 0 {
+                return None;
+            }
+            vm.step();
+            self.instructions += 1;
+            remaining -= 1;
+        }
+        self.finished = true;
+        let rgb = vm.rgb();
+        vm.frame = vm.frame.wrapping_add(1);
+        Some(Frame {
+            rgb,
+            audio: self.audio.take().expect("completed audio phase"),
+            instructions: self.instructions,
+            video_complete: vm.page_flipped,
+            audio_complete: self.audio_complete,
+        })
+    }
+}
+
 /// Persistent 32-bit, 16.16 fixed-point IBNIZ machine with cyclic stacks.
 pub struct Vm {
     program: Program,
@@ -531,46 +612,22 @@ impl Vm {
     /// Render one deterministic 1/60-second tick with a bounded instruction count.
     /// A non-producing or infinite program cannot block its caller indefinitely.
     pub fn render_frame(&mut self, max_instructions: usize) -> Frame {
-        let mut instructions = 0;
-        let audio_start = self.audio_read;
-        let target = self.frame.wrapping_add(1) as u64 * 1024;
+        self.begin_frame(max_instructions)
+            .advance(self, usize::MAX)
+            .expect("an unlimited slice completes an instruction-bounded tick")
+    }
+
+    /// Begins a tick that can be resumed in small instruction slices.
+    pub fn begin_frame(&mut self, max_instructions: usize) -> FrameRender {
         self.preferred = Context::Audio;
-        while self.audio_enabled && !self.stopped && instructions < max_instructions / 4 {
-            let writer =
-                u64::from(self.audio_time / 64) * 65536 + self.registers[1].previous_sp as u64;
-            if writer > target {
-                break;
-            }
-            self.step();
-            instructions += 1;
-        }
-        let writer = u64::from(self.audio_time / 64) * 65536 + self.registers[1].previous_sp as u64;
-        let audio_complete = self.audio_enabled && writer > target;
-        let audio = (0..1024)
-            .map(|i| {
-                if self.audio_enabled {
-                    (self.memory[AUDIO_BASE + ((audio_start + i) & 0xffff)] as u16 ^ 0x8000) as i16
-                } else {
-                    0
-                }
-            })
-            .collect();
-        self.audio_read = (self.audio_read + 1024) & 0xffff;
-        self.preferred = Context::Video;
-        self.page_flipped = false;
-        while !self.stopped && !self.page_flipped && instructions < max_instructions {
-            self.step();
-            instructions += 1;
-        }
-        let video_complete = self.page_flipped;
-        let rgb = self.rgb();
-        self.frame = self.frame.wrapping_add(1);
-        Frame {
-            rgb,
-            audio,
-            instructions,
-            video_complete,
-            audio_complete,
+        FrameRender {
+            budget: max_instructions,
+            instructions: 0,
+            audio_start: self.audio_read,
+            audio_target: self.frame.wrapping_add(1) as u64 * 1024,
+            audio: None,
+            audio_complete: false,
+            finished: false,
         }
     }
 

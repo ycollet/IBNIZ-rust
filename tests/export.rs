@@ -1,10 +1,10 @@
 use std::{
     cell::Cell,
-    io::{self, Write},
+    io::{self, Cursor, Seek, SeekFrom, Write},
     rc::Rc,
 };
 
-use ibniz::export::{WavWriter, write_wav};
+use ibniz::export::{WavRecording, WavWriter, write_wav};
 
 #[test]
 fn streamed_wav_matches_single_slice_export() {
@@ -132,4 +132,73 @@ fn streaming_reports_header_sample_and_flush_errors() {
     )
     .unwrap();
     assert!(wav.finish().is_err());
+}
+
+#[test]
+fn recording_finalizes_an_unknown_sample_count_without_changing_pcm() {
+    let samples: Vec<_> = (0..3001).map(|i| (i * 127) as i16).collect();
+    let mut expected = Vec::new();
+    write_wav(&mut expected, &samples).unwrap();
+    let mut wav = WavRecording::new(Cursor::new(Vec::new())).unwrap();
+    wav.write_samples(&[]).unwrap();
+    for chunk in samples.chunks(257) {
+        wav.write_samples(chunk).unwrap();
+    }
+    assert_eq!(wav.finish().unwrap().into_inner(), expected);
+    let empty = WavRecording::new(Cursor::new(Vec::new()))
+        .unwrap()
+        .finish()
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        empty,
+        WavWriter::new(Vec::new(), 0).unwrap().finish().unwrap()
+    );
+}
+
+#[test]
+fn recording_reports_seek_write_and_flush_failures() {
+    struct FailingFile {
+        inner: Cursor<Vec<u8>>,
+        failure: Rc<Cell<u8>>,
+    }
+    impl Write for FailingFile {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self.failure.get() == 2 {
+                return Err(io::Error::other("write failed"));
+            }
+            self.inner.write(bytes)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            if self.failure.get() == 3 {
+                return Err(io::Error::other("flush failed"));
+            }
+            Ok(())
+        }
+    }
+    impl Seek for FailingFile {
+        fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+            if self.failure.get() == 1 {
+                return Err(io::Error::other("seek failed"));
+            }
+            self.inner.seek(position)
+        }
+    }
+    for kind in 1..=3 {
+        let failure = Rc::new(Cell::new(0));
+        let file = || FailingFile {
+            inner: Cursor::new(Vec::new()),
+            failure: failure.clone(),
+        };
+        let mut wav = WavRecording::new(file()).unwrap();
+        wav.write_samples(&[1, 2]).unwrap();
+        failure.set(kind);
+        if kind == 2 {
+            assert!(wav.write_samples(&[3]).is_err());
+        }
+        assert!(wav.finish().is_err());
+        if kind != 3 {
+            assert!(WavRecording::new(file()).is_err());
+        }
+    }
 }
