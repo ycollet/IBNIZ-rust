@@ -35,6 +35,6 @@ recording controls. The remaining improvements are not ranked.
 
 ## Distribution packages
 
-- [ ] Provide ready-to-install Linux packages.
-- [ ] Create a macOS application bundle.
-- [ ] Automate cross-platform builds.
+- [x] Provide ready-to-install Linux packages.
+- [x] Create a macOS application bundle.
+- [x] Automate cross-platform builds.

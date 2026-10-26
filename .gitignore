@@ -3,3 +3,4 @@
 /recordings/
 *.ppm
 *.wav
+/packaging/__pycache__/

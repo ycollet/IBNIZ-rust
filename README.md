@@ -6,6 +6,73 @@ code editor, realtime video and sound, a reusable VM library, and headless
 PPM/WAV rendering. This is an **altered implementation**, not the original C
 distribution.
 
+## Installers
+
+Pushed version tags produce installers on the repository's **GitHub Releases**
+page, together with `SHA256SUMS`:
+
+| Platform | Installer | Compatibility |
+|----------|-----------|---------------|
+| Debian / Ubuntu | `.deb` | x86-64, Debian 12+ / Ubuntu 24.04+ |
+| Fedora | `.rpm` | x86-64, Fedora 43+ |
+| macOS | `.dmg` containing `IBNIZ Rust.app` | Separate Intel (`x86_64`) and Apple Silicon (`arm64`) builds, macOS 11+ |
+| Windows | `.msi` | x86-64, Windows 10/11 |
+
+Install Linux packages with `sudo apt install ./ibniz-*.deb` or
+`sudo dnf install ./ibniz-*.rpm`. On macOS, open the disk image and drag the app
+into **Applications**. On Windows, run the MSI; it adds a Start menu shortcut,
+an uninstall entry and `ibniz` on `PATH` (open a new terminal after installing).
+The Windows runtime is linked statically; no separate Visual C++ runtime
+installation is required.
+
+These are **unsigned distribution builds**: the macOS app is only ad-hoc signed,
+not Developer ID signed or notarized, and Windows installers have no publisher
+signature. Gatekeeper/SmartScreen may require explicit approval. Verify the
+download source and checksum before approving installation.
+When launching from Finder, choose writable absolute file/recording paths in
+the editor rather than relying on its working directory.
+FFmpeg is **not bundled**; install it separately for optional MP4 conversion.
+
+### Publishing a release
+
+`.github/workflows/installers.yml` runs on tag pushes. Update `[package].version`
+in `Cargo.toml`, refresh `Cargo.lock` with Cargo, and commit those changes before
+creating the matching tag:
+
+```sh
+# After committing the version bump and updated Cargo.lock:
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Tags may use `v0.2.0` or `0.2.0`; their version must match Cargo exactly.
+SemVer prereleases such as `v0.2.0-rc.1` are marked as GitHub prereleases.
+Invalid tags or mismatched versions fail before building installers.
+The common installer version limit is `255.255.65535`. Windows MSI compares only
+the numeric version core, so prereleases/build metadata with the same core can
+replace each other; Debian/RPM prereleases sort before the final release.
+
+All five builds must succeed before publication. Linux packages and Windows
+MSIs are installed and checked on their runners; macOS disk images are verified
+and their bundled executable checked. Assets are also retained as workflow
+artifacts. A new release stays a draft until all installers and checksums have
+uploaded; rerunning the workflow refreshes its assets. Only the publishing job
+gets release-write permissions. No signing secrets are required.
+
+Packaging uses Python 3.11+ and native `dpkg-deb`/`dpkg-shlibdeps`, `rpmbuild`,
+macOS `sips`/`iconutil`/`codesign`/`hdiutil`, and WiX 5.0.2 with its matching UI
+extension. For local packaging after building the native release binary:
+
+```sh
+python3 -m unittest discover -s packaging -p 'test_*.py'
+python3 packaging/package.py build --tag v0.1.0 --format deb \
+  --binary target/release/ibniz
+```
+
+Use a matching tag/version and the format appropriate to your host (`deb`,
+`rpm`, `dmg`, or `msi`; Windows uses `ibniz.exe`). macOS takes
+`--arch x86_64` or `--arch arm64`. Installers are written to `target/installers/`.
+
 ## Run
 
 Install Rust 1.88 or newer, then:
