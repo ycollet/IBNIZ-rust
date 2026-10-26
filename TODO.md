@@ -11,9 +11,9 @@ recording controls. The remaining improvements are not ranked.
 
 ## Editor improvements
 
-- [ ] Add syntax highlighting.
-- [ ] Display compile errors inline at the relevant source location.
-- [ ] Confirm before loading another file or exiting with unsaved changes.
+- [x] Add syntax highlighting.
+- [x] Display compile errors inline at the relevant source location.
+- [x] Confirm before loading another file or exiting with unsaved changes.
 
 ## Recording controls
 

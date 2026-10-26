@@ -1,4 +1,5 @@
 mod audio;
+mod editor;
 mod examples;
 mod nsm;
 mod recording;
@@ -10,7 +11,7 @@ use std::{
 };
 
 use eframe::egui::{self, Color32, Key, Modifiers, TextureHandle};
-use ibniz::{FrameRender, HEIGHT, Program, Vm, WIDTH};
+use ibniz::{CompileError, FrameRender, HEIGHT, Program, Vm, WIDTH};
 
 use crate::Options;
 use audio::Audio;
@@ -43,6 +44,13 @@ pub fn launch(options: Options, program: Program) -> eframe::Result {
     )
 }
 
+#[derive(Clone)]
+enum PendingAction {
+    File(String),
+    Example(&'static examples::Example),
+    Close,
+}
+
 struct App {
     source: String,
     saved_source: String,
@@ -57,7 +65,7 @@ struct App {
     volume: f32,
     texture: Option<TextureHandle>,
     error: Option<String>,
-    compile_error: Option<String>,
+    compile_error: Option<CompileError>,
     notice: String,
     budget: usize,
     render: Option<FrameRender>,
@@ -78,8 +86,9 @@ struct App {
     recording_directory: String,
     recording_mp4: bool,
     close_after_recording: bool,
+    close_confirmed: bool,
     example_browser: examples::Browser,
-    pending_example: Option<&'static examples::Example>,
+    pending_action: Option<PendingAction>,
     nsm: Option<nsm::Client>,
     session: Option<nsm::Project>,
     nsm_label: String,
@@ -140,8 +149,9 @@ impl App {
             recording_directory: "recordings".into(),
             recording_mp4: false,
             close_after_recording: false,
+            close_confirmed: false,
             example_browser: examples::Browser::default(),
-            pending_example: None,
+            pending_action: None,
             nsm: None,
             session: None,
             nsm_label: String::new(),
@@ -188,7 +198,7 @@ impl App {
                 self.compiled_source = self.source.clone();
                 self.compile_error = None;
             }
-            Err(error) => self.compile_error = Some(error.to_string()),
+            Err(error) => self.compile_error = Some(error),
         }
     }
 
@@ -214,15 +224,24 @@ impl App {
                 Some("File Load is disabled under NSM; import a bundled example instead.".into());
             return;
         }
-        match fs::read_to_string(&self.path) {
+        if self.source != self.saved_source {
+            self.pending_action = Some(PendingAction::File(self.path.clone()));
+        } else {
+            self.load_file(&self.path.clone());
+        }
+    }
+
+    fn load_file(&mut self, path: &str) {
+        match fs::read_to_string(path) {
             Ok(source) => match Program::compile(&source) {
                 Ok(program) => {
                     self.replace_source(source, program);
-                    self.notice = format!("Loaded {}", self.path);
+                    self.path = path.into();
+                    self.notice = format!("Loaded {path}");
                 }
-                Err(error) => self.error = Some(format!("Cannot load {}: {error}", self.path)),
+                Err(error) => self.error = Some(format!("Cannot load {path}: {error}")),
             },
-            Err(error) => self.error = Some(format!("Cannot load {}: {error}", self.path)),
+            Err(error) => self.error = Some(format!("Cannot load {path}: {error}")),
         }
     }
 
@@ -246,7 +265,7 @@ impl App {
 
     fn request_example(&mut self, example: &'static examples::Example) {
         if self.source != self.saved_source {
-            self.pending_example = Some(example);
+            self.pending_action = Some(PendingAction::Example(example));
         } else {
             self.load_example(example);
         }
@@ -276,7 +295,7 @@ impl App {
                 self.running = false;
                 self.editor = true;
                 self.example_browser.open = false;
-                self.pending_example = None;
+                self.pending_action = None;
                 self.notice = if self.managed() {
                     format!(
                         "Imported bundled {} into the NSM session (paused).",
@@ -290,35 +309,57 @@ impl App {
                 };
             }
             Err(error) => {
-                self.pending_example = None;
+                self.pending_action = None;
                 self.error = Some(format!("Cannot load bundled {}: {error}", example.filename));
             }
         }
     }
 
-    fn confirm_example(&mut self, ctx: &egui::Context) {
-        let Some(example) = self.pending_example else {
+    fn confirm_pending(&mut self, ctx: &egui::Context) {
+        let Some(action) = self.pending_action.clone() else {
             return;
         };
         let mut discard = false;
         let mut cancel = false;
-        let response =
-            egui::Modal::new(egui::Id::new("replace-source-with-example")).show(ctx, |ui| {
-                ui.heading("Replace unsaved edits?");
-                ui.label(format!(
-                    "Loading {} will replace your modified source and reset playback.",
-                    example.title,
-                ));
-                ui.label("Cancel to save your work first.");
-                ui.horizontal(|ui| {
-                    discard = ui.button("Discard edits and load").clicked();
-                    cancel = ui.button("Cancel").clicked();
-                });
+        let response = egui::Modal::new(egui::Id::new("confirm-unsaved-changes")).show(ctx, |ui| {
+            ui.heading("Unsaved changes");
+            match &action {
+                PendingAction::File(path) => {
+                    ui.label(format!(
+                        "Loading {path} will replace your modified source and reset playback."
+                    ));
+                }
+                PendingAction::Example(example) => {
+                    ui.label(format!(
+                        "Loading {} will replace your modified source and reset playback.",
+                        example.title
+                    ));
+                }
+                PendingAction::Close => {
+                    ui.label("Exiting will discard unsaved source or session-setting changes.");
+                }
+            }
+            ui.label("Cancel to save your work first.");
+            ui.horizontal(|ui| {
+                discard = ui
+                    .button(if matches!(action, PendingAction::Close) {
+                        "Discard changes and exit"
+                    } else {
+                        "Discard edits and load"
+                    })
+                    .clicked();
+                cancel = ui.button("Cancel").clicked();
             });
+        });
         if discard {
-            self.load_example(example);
+            self.pending_action = None;
+            match action {
+                PendingAction::File(path) => self.load_file(&path),
+                PendingAction::Example(example) => self.load_example(example),
+                PendingAction::Close => self.finish_close(ctx),
+            }
         } else if cancel || response.should_close() {
-            self.pending_example = None;
+            self.pending_action = None;
         }
     }
 
@@ -384,7 +425,7 @@ impl App {
             Err(error) => (
                 Program::compile(&state.compiled_source)
                     .map_err(|e| nsm::Failure::new(nsm::BAD_PROJECT, e.to_string()))?,
-                Some(error.to_string()),
+                Some(error),
                 state.compiled_source.clone(),
             ),
         };
@@ -416,7 +457,7 @@ impl App {
         project.saved = self.session_state();
         self.session = Some(project);
         self.nsm_label = format!("{display} ({client_id})");
-        self.pending_example = None;
+        self.pending_action = None;
         self.notice = format!("Opened NSM session {} at VM time zero", self.nsm_label);
         self.nsm_error = None;
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
@@ -451,7 +492,7 @@ impl App {
         if client.termination_requested() {
             self.nsm_quitting = true;
             self.running = false;
-            self.pending_example = None;
+            self.pending_action = None;
             if let Some(audio) = &mut self.audio {
                 audio.clear();
             }
@@ -556,11 +597,22 @@ impl App {
                 self.notice.clear();
                 self.error = Some(error);
                 self.close_after_recording = false;
+                self.close_confirmed = false;
             }
         }
     }
 
     fn request_close(&mut self, ctx: &egui::Context) {
+        if !self.close_confirmed && self.modified() {
+            self.pending_action = Some(PendingAction::Close);
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        } else {
+            self.finish_close(ctx);
+        }
+    }
+
+    fn finish_close(&mut self, ctx: &egui::Context) {
+        self.close_confirmed = true;
         if self.recording.is_some() {
             self.close_after_recording = true;
             self.stop_recording();
@@ -570,12 +622,12 @@ impl App {
         }
     }
 
-    fn shortcuts(&mut self, ctx: &egui::Context) {
-        if self.pending_example.is_some() {
+    fn shortcuts(&mut self, ctx: &egui::Context) -> bool {
+        if self.pending_action.is_some() {
             if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
-                self.pending_example = None;
+                self.pending_action = None;
             }
-            return;
+            return false;
         }
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F12)) {
             self.help = !self.help;
@@ -598,9 +650,10 @@ impl App {
             } else if self.example_browser.open {
                 self.example_browser.open = false;
             } else {
-                self.request_close(ctx);
+                return true;
             }
         }
+        false
     }
 
     fn tick(&mut self, ctx: &egui::Context) {
@@ -754,10 +807,21 @@ impl App {
             }
             return;
         }
-        self.shortcuts(ctx);
-        if ctx.input(|i| i.viewport().close_requested()) {
-            self.request_close(ctx);
+        if self.close_after_recording {
+            if self.recording.is_some() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.heading("Finalizing recording before exit");
+                    ui.spinner();
+                    ui.label("Queued frames and audio are being saved. Please wait.");
+                });
+                ctx.request_repaint_after(Duration::from_millis(10));
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            return;
         }
+        let exit_requested = self.shortcuts(ctx);
         egui::TopBottomPanel::top("controls").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui
@@ -989,11 +1053,32 @@ impl App {
                     }
                 }
                 egui::ScrollArea::both().show(ui, |ui| {
+                    let error = self.compile_error.as_ref();
+                    let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap_width: f32| {
+                        let mut job = editor::highlight(
+                            buffer.as_str(), ui.visuals(),
+                            egui::TextStyle::Monospace.resolve(ui.style()), error,
+                        );
+                        job.wrap.max_width = wrap_width;
+                        ui.fonts_mut(|fonts| fonts.layout_job(job))
+                    };
                     let output = egui::TextEdit::multiline(&mut self.source).code_editor()
                             .desired_width(f32::INFINITY).desired_rows(28)
+                            .layouter(&mut layouter)
                             .id(source_id).show(ui);
                     if let Some(cursor) = output.cursor_range { self.cursor = cursor.primary.index; }
                     if output.response.changed() { self.recompile(); }
+                    if let Some(error) = &self.compile_error {
+                        let (line, column) = editor::location(&self.source, error.offset);
+                        let diagnostic = format!("Line {line}, column {column}: {}", error.message);
+                        let index = self.source[..error.offset].chars().count();
+                        let start = output.galley.pos_from_cursor(egui::text::CCursor::new(index));
+                        let end = output.galley.pos_from_cursor(egui::text::CCursor::new(index + 1));
+                        let rect = start.union(end).translate(output.galley_pos.to_vec2());
+                        ui.interact(rect.intersect(ui.clip_rect()), source_id.with("compile-error"), egui::Sense::hover())
+                            .on_hover_text(&diagnostic);
+                        ui.colored_label(ui.visuals().error_fg_color, diagnostic);
+                    }
                 });
                 ui.separator();
                 ui.small("Clipboard, selection, undo/redo and word navigation use platform editor shortcuts.");
@@ -1029,6 +1114,8 @@ impl App {
                 ui.heading("Keyboard shortcuts");
                 ui.label("F12: show / hide help\nEsc: cancel example loading, close help or examples, otherwise exit\nF1: run / pause\nF2: reset memory, stacks and time\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
+                ui.label("Syntax colors distinguish numbers, comments, control flow, stack/media instructions and data modes. Compile errors underline the offending character; hover it for details, or read the line/column message below the editor.");
+                ui.label("Loading a file or example and exiting ask before discarding unsaved changes. Cancel to save first. Escape cancels the confirmation. NSM termination always exits without a dialog.");
                 ui.label("Examples: search bundled programs by title, description, contributor or source, and filter by category. Loading resets and pauses playback, asks before discarding edits, and suggests a local copy path outside NSM sessions. Credits, pinned source links and collection licenses are available offline (links require a browser).");
                 ui.label("NSM: launch from a session manager to save source and playback settings in its assigned project. Loading restarts the VM at time zero. File Load is disabled; examples are imported into the session. Stop recording and wait for finalization before saving.");
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
@@ -1062,7 +1149,10 @@ impl App {
                 ui.label("Edits recompile without resetting VM state. Hide the editor to send typed characters to U. Mouse position and buttons are taken from the video display.");
                 ui.hyperlink_to("Full upstream language manual", "https://github.com/viznut/IBNIZ/blob/master/src/ibniz.txt");
             });
-        self.confirm_example(ctx);
+        if exit_requested || ctx.input(|i| i.viewport().close_requested()) {
+            self.request_close(ctx);
+        }
+        self.confirm_pending(ctx);
         self.tick(ctx);
         self.report_nsm_dirty();
         if self.recording.is_some() || self.nsm.is_some() {
@@ -1319,7 +1409,7 @@ mod tests {
         assert_eq!(error.args[1], rosc::OscType::Int(nsm::NOT_NOW));
         app.source.push_str(" 1");
         app.request_example(bundled_example("plasma.ib"));
-        assert!(app.pending_example.is_some());
+        assert!(app.pending_action.is_some());
         app.nsm.as_ref().unwrap().request_termination();
         let deadline = Instant::now() + Duration::from_secs(5);
         let closed = loop {
@@ -1338,7 +1428,7 @@ mod tests {
         assert!(closed);
         assert!(app.nsm_quitting);
         assert!(!app.running);
-        assert!(app.pending_example.is_none());
+        assert!(app.pending_action.is_none());
         assert!(app.recording.is_none());
         assert_eq!(
             fs::read(take.join("sound.wav")).unwrap().len(),
@@ -1370,7 +1460,7 @@ mod tests {
         assert!(app.render.is_none());
         assert!(app.texture.is_none());
         assert!(app.compile_error.is_none());
-        assert!(app.pending_example.is_none());
+        assert!(app.pending_action.is_none());
         assert_eq!(app.vm.memory()[0x123], 0);
         assert_eq!(app.vm.status().frame, 0);
         assert_eq!(app.late_ticks, 0);
@@ -1384,6 +1474,239 @@ mod tests {
     }
 
     #[test]
+    fn editor_marks_compile_errors_inline_and_clears_them_after_correction() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.source = "\\ \u{e9}\n1 \u{2603}".into();
+        app.recompile();
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        let error = app.compile_error.as_ref().unwrap();
+        let diagnostic = format!("Line 2, column 3: {}", error.message);
+        assert!(output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::epaint::Shape::Text(text) if text.galley.text() == diagnostic)
+        }));
+        assert!(output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::epaint::Shape::Text(text)
+                if text.galley.text() == app.source
+                && text.galley.job.sections.iter().any(|section| section.format.underline.width > 0.0))
+        }));
+        let offset = error.offset;
+        app.source
+            .replace_range(offset..offset + '\u{2603}'.len_utf8(), "d");
+        app.recompile();
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        assert!(app.compile_error.is_none());
+        assert!(output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::epaint::Shape::Text(text)
+                if text.galley.text() == app.source
+                && text.galley.job.sections.iter().all(|section| section.format.underline.width == 0.0))
+        }));
+    }
+
+    #[test]
+    fn file_load_confirmation_preserves_edits_on_cancel_and_loads_only_after_discard() {
+        let directory = nsm::tests::TestDirectory::new();
+        let path = directory.0.join("next.ib");
+        fs::write(&path, "1").unwrap();
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.source.push_str(" 2");
+        app.recompile();
+        app.vm.memory_mut()[0x123] = 42;
+        let edited = app.source.clone();
+        app.path = path.to_string_lossy().into_owned();
+        app.load();
+        assert!(matches!(app.pending_action, Some(PendingAction::File(_))));
+        assert_eq!(app.source, edited);
+        click_label(&mut app, &ctx, "Cancel");
+        assert!(app.pending_action.is_none());
+        assert_eq!(app.source, edited);
+        assert_eq!(app.vm.memory()[0x123], 42);
+        app.load();
+        app.path = directory
+            .0
+            .join("not-the-requested-file.ib")
+            .to_string_lossy()
+            .into_owned();
+        click_label(&mut app, &ctx, "Discard edits and load");
+        assert!(app.pending_action.is_none());
+        assert_eq!(app.source, "1");
+        assert_eq!(app.saved_source, "1");
+        assert_eq!(Path::new(&app.path), path);
+        assert_eq!(app.vm.memory()[0x123], 0);
+    }
+
+    #[test]
+    fn failed_confirmed_loads_preserve_unsaved_source_and_vm() {
+        let directory = nsm::tests::TestDirectory::new();
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.source.push_str(" 2");
+        app.vm.memory_mut()[0x123] = 42;
+        let edited = app.source.clone();
+        for contents in [None, Some("invalid")] {
+            let path = directory.0.join("bad.ib");
+            if let Some(contents) = contents {
+                fs::write(&path, contents).unwrap();
+            }
+            app.path = path.to_string_lossy().into_owned();
+            app.load();
+            click_label(&mut app, &ctx, "Discard edits and load");
+            assert!(app.error.as_ref().unwrap().contains("Cannot load"));
+            assert_eq!(app.source, edited);
+            assert_eq!(app.vm.memory()[0x123], 42);
+            assert!(app.modified());
+            assert!(app.pending_action.is_none());
+        }
+    }
+
+    #[test]
+    fn native_exit_confirmation_includes_edits_received_in_the_close_frame() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        let source = app.source.clone();
+        click_label(&mut app, &ctx, &source);
+        assert!(ctx.memory(|memory| memory.has_focus(egui::Id::new("source"))));
+        let mut input = egui::RawInput {
+            events: vec![egui::Event::Text("1 ".into())],
+            ..Default::default()
+        };
+        input
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .unwrap()
+            .events
+            .push(egui::ViewportEvent::Close);
+        let output = ctx.run(input, |ctx| app.ui(ctx));
+        assert_ne!(app.source, app.saved_source);
+        assert!(matches!(app.pending_action, Some(PendingAction::Close)));
+        assert!(!app.close_confirmed);
+        assert!(
+            !output
+                .viewport_output
+                .values()
+                .flat_map(|viewport| &viewport.commands)
+                .any(|command| matches!(command, egui::ViewportCommand::Close))
+        );
+    }
+
+    #[test]
+    fn native_close_can_be_cancelled_and_discard_is_not_confirmed_twice() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.source.push_str(" 1");
+        let close_input = || {
+            let mut input = egui::RawInput::default();
+            input
+                .viewports
+                .get_mut(&egui::ViewportId::ROOT)
+                .unwrap()
+                .events
+                .push(egui::ViewportEvent::Close);
+            input
+        };
+        for _ in 0..2 {
+            let output = ctx.run(close_input(), |ctx| app.ui(ctx));
+            assert!(matches!(app.pending_action, Some(PendingAction::Close)));
+            let commands: Vec<_> = output
+                .viewport_output
+                .values()
+                .flat_map(|viewport| &viewport.commands)
+                .collect();
+            assert!(
+                commands
+                    .iter()
+                    .any(|command| matches!(command, egui::ViewportCommand::CancelClose))
+            );
+            assert!(
+                !commands
+                    .iter()
+                    .any(|command| matches!(command, egui::ViewportCommand::Close))
+            );
+        }
+        click_label(&mut app, &ctx, "Cancel");
+        assert!(app.pending_action.is_none());
+        assert!(!app.close_confirmed);
+        assert!(app.modified());
+        let _ = ctx.run(close_input(), |ctx| app.ui(ctx));
+        click_label(&mut app, &ctx, "Discard changes and exit");
+        assert!(app.pending_action.is_none());
+        assert!(app.close_confirmed);
+        let output = ctx.run(close_input(), |ctx| app.ui(ctx));
+        assert!(
+            output
+                .viewport_output
+                .values()
+                .flat_map(|viewport| &viewport.commands)
+                .any(|command| matches!(command, egui::ViewportCommand::Close))
+        );
+        assert!(app.pending_action.is_none());
+    }
+
+    #[test]
+    fn cancelling_exit_keeps_recording_active_and_discard_finalizes_it() {
+        let directory = nsm::tests::TestDirectory::new();
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.recording_directory = directory.0.to_string_lossy().into_owned();
+        app.start_recording();
+        let frame = app.vm.render_frame(app.budget);
+        app.recording.as_mut().unwrap().capture(&frame).unwrap();
+        let take = app.recording.as_ref().unwrap().directory.clone();
+        app.source.push_str(" 1");
+        app.request_close(&ctx);
+        click_label(&mut app, &ctx, "Cancel");
+        assert!(app.recording.as_ref().unwrap().is_capturing());
+        assert!(!app.close_after_recording);
+        app.request_close(&ctx);
+        click_label(&mut app, &ctx, "Discard changes and exit");
+        assert!(app.close_after_recording);
+        assert!(app.close_confirmed);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+            if output
+                .viewport_output
+                .values()
+                .flat_map(|viewport| &viewport.commands)
+                .any(|command| matches!(command, egui::ViewportCommand::Close))
+            {
+                break;
+            }
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(app.pending_action.is_none());
+        assert!(app.recording.is_none());
+        assert_eq!(
+            fs::read(take.join("sound.wav")).unwrap().len(),
+            44 + 1024 * 2
+        );
+    }
+
+    #[test]
+    fn managed_close_confirms_settings_but_sigterm_cancels_confirmation() {
+        let directory = nsm::tests::TestDirectory::new();
+        let ctx = egui::Context::default();
+        let (mut app, server) = managed_app();
+        open_managed(&mut app, &server, &ctx, &directory.0.join("client.nTEST"));
+        app.volume = 0.4;
+        app.request_close(&ctx);
+        assert!(matches!(app.pending_action, Some(PendingAction::Close)));
+        app.nsm.as_ref().unwrap().request_termination();
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        assert!(app.pending_action.is_none());
+        assert!(app.nsm_quitting);
+        assert!(
+            output
+                .viewport_output
+                .values()
+                .flat_map(|viewport| &viewport.commands)
+                .any(|command| matches!(command, egui::ViewportCommand::Close))
+        );
+    }
+
+    #[test]
     fn example_load_confirmation_can_cancel_or_discard_unsaved_edits() {
         let ctx = egui::Context::default();
         let mut app = app();
@@ -1392,17 +1715,17 @@ mod tests {
         let edited = app.source.clone();
         app.vm.memory_mut()[0x123] = 42;
         app.request_example(bundled_example("glass.ib"));
-        assert!(app.pending_example.is_some());
+        assert!(app.pending_action.is_some());
         assert_eq!(app.source, edited);
         click_label(&mut app, &ctx, "Cancel");
-        assert!(app.pending_example.is_none());
+        assert!(app.pending_action.is_none());
         assert_eq!(app.source, edited);
         assert_eq!(app.vm.memory()[0x123], 42);
         assert!(app.example_browser.open);
 
         app.request_example(bundled_example("glass.ib"));
         click_label(&mut app, &ctx, "Discard edits and load");
-        assert!(app.pending_example.is_none());
+        assert!(app.pending_action.is_none());
         assert_eq!(app.source, bundled_example("glass.ib").source);
         assert_eq!(app.path, "glass-copy.ib");
         assert_eq!(app.vm.memory()[0x123], 0);
@@ -1411,14 +1734,14 @@ mod tests {
     }
 
     #[test]
-    fn escape_cancels_example_loading_then_closes_browser_before_exiting() {
+    fn escape_cancels_example_loading_then_closes_browser_before_confirming_exit() {
         let ctx = egui::Context::default();
         let mut app = app();
         app.example_browser.open = true;
         app.source.push_str(" 1");
         let edited = app.source.clone();
         app.request_example(bundled_example("glass.ib"));
-        for (browser_open, closing) in [(true, false), (false, false), (false, true)] {
+        for (browser_open, confirming) in [(true, false), (false, false), (false, true)] {
             let output = ctx.run(
                 egui::RawInput {
                     events: [true, false]
@@ -1435,16 +1758,18 @@ mod tests {
                 },
                 |ctx| app.ui(ctx),
             );
-            assert!(app.pending_example.is_none());
+            assert_eq!(
+                matches!(app.pending_action, Some(PendingAction::Close)),
+                confirming
+            );
             assert_eq!(app.example_browser.open, browser_open);
             assert_eq!(app.source, edited);
-            assert_eq!(
-                output
+            assert!(
+                !output
                     .viewport_output
                     .values()
                     .flat_map(|output| &output.commands)
                     .any(|command| matches!(command, egui::ViewportCommand::Close)),
-                closing,
             );
         }
     }

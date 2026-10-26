@@ -76,10 +76,14 @@ rsvg-convert --width 256 --height 256 --output assets/ibniz.png assets/ibniz.svg
 | Examples | Browse, search and load bundled programs |
 
 The editor supports platform-standard selection, clipboard, word navigation
-and undo/redo. Changes recompile immediately **without resetting VM state**.
-Compile errors suspend playback until corrected; resetting uses the last
-successfully compiled program. A `T` instruction stops execution; use F2 and
-F1 to start it again.
+and undo/redo. Theme-aware syntax colors distinguish hexadecimal numbers,
+comments, control flow, stack/media instructions and data-section modes.
+Changes recompile immediately **without resetting VM state**.
+Compile errors underline the offending character: hover it for details, or
+read the line/column diagnostic beneath the source. Columns count Unicode
+characters, not UTF-8 bytes. Errors suspend playback until corrected; resetting
+uses the last successfully compiled program. A `T` instruction stops execution;
+use F2 and F1 to start it again.
 
 The status bar shows stack pointers, video mode, time, instruction count and
 audio health. Slow programs are bounded by `--max-instructions` per tick
@@ -101,8 +105,12 @@ Counters persist across edits and pauses; F2 or loading a file resets them.
 Mouse coordinates, buttons and modifiers feed `U`. Hide the editor to send
 typed characters to the VM instead of editing. Files are saved exactly as
 entered; the original editor's `\#file` filename convention is replaced by
-the explicit file path field. File Load and exit do not prompt to save, so save
-modified source first. Loading a bundled example does ask before discarding edits.
+the explicit file path field. File Load, bundled example loading and exit ask
+before discarding unsaved changes. **Cancel** (or Escape) keeps your edits so
+you can save first; **Discard** proceeds without saving. Failed file loads
+preserve the current source and VM. Under NSM, ordinary window exit also
+protects unsaved session settings, but manager-requested termination never
+prompts.
 
 ### Bundled example browser
 
@@ -169,7 +177,8 @@ availability. Keep playback volume low when opening recordings.
 
 Run/pause and compile errors pause capture without inserting silence or
 duplicate frames. Edits, resets and loaded programs appear in the same take.
-VM termination stops recording; closing the window waits for finalization.
+VM termination stops recording; closing the window confirms unsaved changes
+first, then waits for finalization with editing disabled.
 Recordings use the VM's 60 Hz timeline, not wall-clock time: a slow expression
 still exports one video frame per 1,024 audio samples. Instruction-budget
 exhaustion can still produce incomplete video or stale audio, as in headless
