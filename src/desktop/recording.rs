@@ -234,18 +234,21 @@ fn encode_mp4(directory: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     use ibniz::{HEIGHT, WIDTH};
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     struct TestDirectory(PathBuf);
 
     impl TestDirectory {
         fn new() -> Self {
+            static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
             Self(std::env::temp_dir().join(format!(
-                "ibniz-recording-test-{timestamp}-{}",
+                "ibniz-recording-test-{timestamp}-{}-{}",
                 std::process::id(),
+                NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed),
             )))
         }
     }

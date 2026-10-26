@@ -1,4 +1,5 @@
 mod audio;
+mod examples;
 mod recording;
 
 use std::{
@@ -68,6 +69,8 @@ struct App {
     recording_directory: String,
     recording_mp4: bool,
     close_after_recording: bool,
+    example_browser: examples::Browser,
+    pending_example: Option<&'static examples::Example>,
 }
 
 impl App {
@@ -122,6 +125,8 @@ impl App {
             recording_directory: "recordings".into(),
             recording_mp4: false,
             close_after_recording: false,
+            example_browser: examples::Browser::default(),
+            pending_example: None,
         }
     }
 
@@ -180,23 +185,90 @@ impl App {
         match fs::read_to_string(&self.path) {
             Ok(source) => match Program::compile(&source) {
                 Ok(program) => {
-                    self.source = source;
-                    self.saved_source = self.source.clone();
-                    self.vm = Vm::new(program);
-                    self.render = None;
-                    self.render_work = Duration::ZERO;
-                    self.compile_error = None;
-                    self.next_tick = Instant::now();
-                    self.texture = None;
-                    if let Some(audio) = &mut self.audio {
-                        audio.clear();
-                    }
-                    self.reset_counters();
+                    self.replace_source(source, program);
                     self.notice = format!("Loaded {}", self.path);
                 }
                 Err(error) => self.error = Some(format!("Cannot load {}: {error}", self.path)),
             },
             Err(error) => self.error = Some(format!("Cannot load {}: {error}", self.path)),
+        }
+    }
+
+    fn replace_source(&mut self, source: String, program: Program) {
+        self.source = source;
+        self.saved_source = self.source.clone();
+        self.vm = Vm::new(program);
+        self.render = None;
+        self.render_work = Duration::ZERO;
+        self.compile_error = None;
+        self.next_tick = Instant::now();
+        self.texture = None;
+        self.cursor = 0;
+        self.last_instructions = 0;
+        if let Some(audio) = &mut self.audio {
+            audio.clear();
+        }
+        self.reset_counters();
+    }
+
+    fn request_example(&mut self, example: &'static examples::Example) {
+        if self.source != self.saved_source {
+            self.pending_example = Some(example);
+        } else {
+            self.load_example(example);
+        }
+    }
+
+    fn load_example(&mut self, example: &'static examples::Example) {
+        match Program::compile(example.source) {
+            Ok(program) => {
+                self.replace_source(example.source.into(), program);
+                self.path = format!(
+                    "{}-copy.ib",
+                    example
+                        .filename
+                        .strip_suffix(".ib")
+                        .expect("example filename"),
+                );
+                self.running = false;
+                self.editor = true;
+                self.example_browser.open = false;
+                self.pending_example = None;
+                self.notice = format!(
+                    "Loaded bundled {} (paused). Save writes a copy to {}; change the path if needed.",
+                    example.title, self.path,
+                );
+            }
+            Err(error) => {
+                self.pending_example = None;
+                self.error = Some(format!("Cannot load bundled {}: {error}", example.filename));
+            }
+        }
+    }
+
+    fn confirm_example(&mut self, ctx: &egui::Context) {
+        let Some(example) = self.pending_example else {
+            return;
+        };
+        let mut discard = false;
+        let mut cancel = false;
+        let response =
+            egui::Modal::new(egui::Id::new("replace-source-with-example")).show(ctx, |ui| {
+                ui.heading("Replace unsaved edits?");
+                ui.label(format!(
+                    "Loading {} will replace your modified source and reset playback.",
+                    example.title,
+                ));
+                ui.label("Cancel to save your work first.");
+                ui.horizontal(|ui| {
+                    discard = ui.button("Discard edits and load").clicked();
+                    cancel = ui.button("Cancel").clicked();
+                });
+            });
+        if discard {
+            self.load_example(example);
+        } else if cancel || response.should_close() {
+            self.pending_example = None;
         }
     }
 
@@ -263,6 +335,12 @@ impl App {
     }
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
+        if self.pending_example.is_some() {
+            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+                self.pending_example = None;
+            }
+            return;
+        }
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F12)) {
             self.help = !self.help;
         }
@@ -281,6 +359,8 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             if self.help {
                 self.help = false;
+            } else if self.example_browser.open {
+                self.example_browser.open = false;
             } else {
                 self.request_close(ctx);
             }
@@ -373,6 +453,7 @@ impl App {
         let mut word = self.vm.input() & 0x00ff_ffff;
         let clicked = response.is_pointer_button_down_on();
         let pointer = response.hover_pos();
+        let keyboard_to_vm = !self.editor && !ui.ctx().wants_keyboard_input();
         ui.input(|i| {
             let mut flags = 0;
             if clicked {
@@ -405,7 +486,7 @@ impl App {
                     .clamp(0.0, 255.0) as u32;
                 word = (word & 0xffff0000) | (y << 8) | x;
             }
-            if !self.editor {
+            if keyboard_to_vm {
                 for event in &i.events {
                     if let egui::Event::Text(text) = event {
                         for ch in text.chars() {
@@ -450,6 +531,9 @@ impl App {
                 ui.checkbox(&mut self.editor, "Editor (Tab)");
                 if ui.button("Help (F12)").clicked() {
                     self.help = !self.help;
+                }
+                if ui.button("Examples").clicked() {
+                    self.example_browser.open = !self.example_browser.open;
                 }
                 ui.add(egui::Slider::new(&mut self.volume, 0.0..=1.0).text("Volume"));
                 ui.menu_button("Audio", |ui| {
@@ -676,14 +760,18 @@ impl App {
                 self.input(ui, &response);
             }
         });
+        if let Some(example) = self.example_browser.show(ctx) {
+            self.request_example(example);
+        }
         egui::Window::new("IBNIZ Help (F12)")
             .open(&mut self.help)
             .default_width(520.0)
             .vscroll(true)
             .show(ctx, |ui| {
                 ui.heading("Keyboard shortcuts");
-                ui.label("F12: show / hide help\nEsc: close help, or exit when help is hidden\nF1: run / pause\nF2: reset memory, stacks and time\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
+                ui.label("F12: show / hide help\nEsc: cancel example loading, close help or examples, otherwise exit\nF1: run / pause\nF2: reset memory, stacks and time\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
+                ui.label("Examples: search bundled programs by title, description, contributor or source, and filter by category. Loading resets and pauses playback, asks before discarding edits, and suggests a local copy path. Credits, pinned source links and collection licenses are available offline (links require a browser).");
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.label("Recording: choose an output folder and Start/Stop to save PPM frames and full-scale, unfiltered WAV audio. Run/pause and compile errors pause capture. Optional MP4 uses installed FFmpeg after Stop; original files are retained.");
                 ui.label("Playback: adjust preview refresh, instructions per VM tick, UI work slices and audio buffering without resetting the VM. Preview refresh affects only the display, not recordings. Audio rebuffering uses short fades; sustained overload can still cause gaps.");
@@ -715,6 +803,7 @@ impl App {
                 ui.label("Edits recompile without resetting VM state. Hide the editor to send typed characters to U. Mouse position and buttons are taken from the video display.");
                 ui.hyperlink_to("Full upstream language manual", "https://github.com/viznut/IBNIZ/blob/master/src/ibniz.txt");
             });
+        self.confirm_example(ctx);
         self.tick(ctx);
         if self.recording.is_some() {
             ctx.request_repaint_after(Duration::from_millis(100));
@@ -793,6 +882,183 @@ mod tests {
             assert!(Instant::now() < deadline, "VM tick did not complete");
             app.tick(ctx);
         }
+    }
+
+    fn bundled_example(filename: &str) -> &'static examples::Example {
+        examples::EXAMPLES
+            .iter()
+            .find(|example| example.filename == filename)
+            .unwrap()
+    }
+
+    fn click_label(app: &mut App, ctx: &egui::Context, label: &str) {
+        let _ = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        let position = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) if text.galley.text() == label => {
+                    Some(text.pos + text.galley.size() * 0.5)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing UI label: {label}"));
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![egui::Event::PointerMoved(position)],
+                ..Default::default()
+            },
+            |ctx| app.ui(ctx),
+        );
+        for pressed in [true, false] {
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: vec![egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: Modifiers::NONE,
+                    }],
+                    ..Default::default()
+                },
+                |ctx| app.ui(ctx),
+            );
+        }
+    }
+
+    #[test]
+    fn loading_bundled_examples_resets_and_pauses_without_changing_playback_settings() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.slice_ms = 0;
+        app.toggle_running();
+        app.tick(&ctx);
+        assert!(app.render.is_some());
+        app.vm.memory_mut()[0x123] = 42;
+        app.late_ticks = 10;
+        app.audio_budget_misses = 12;
+        app.cursor = 5;
+        app.editor = false;
+        let budget = app.budget;
+        app.request_example(bundled_example("plasma.ib"));
+        assert_eq!(app.source, bundled_example("plasma.ib").source);
+        assert_eq!(app.source, app.saved_source);
+        assert_eq!(app.path, "plasma-copy.ib");
+        assert!(!app.running);
+        assert!(app.editor);
+        assert!(app.render.is_none());
+        assert!(app.texture.is_none());
+        assert!(app.compile_error.is_none());
+        assert!(app.pending_example.is_none());
+        assert_eq!(app.vm.memory()[0x123], 0);
+        assert_eq!(app.vm.status().frame, 0);
+        assert_eq!(app.late_ticks, 0);
+        assert_eq!(app.audio_budget_misses, 0);
+        assert_eq!(app.cursor, 0);
+        assert_eq!(app.budget, budget);
+        assert_eq!(app.slice_ms, 0);
+        app.toggle_running();
+        complete_tick(&mut app, &ctx);
+        assert_eq!(app.vm.status().frame, 1);
+    }
+
+    #[test]
+    fn example_load_confirmation_can_cancel_or_discard_unsaved_edits() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.example_browser.open = true;
+        app.source.push_str(" 1");
+        let edited = app.source.clone();
+        app.vm.memory_mut()[0x123] = 42;
+        app.request_example(bundled_example("glass.ib"));
+        assert!(app.pending_example.is_some());
+        assert_eq!(app.source, edited);
+        click_label(&mut app, &ctx, "Cancel");
+        assert!(app.pending_example.is_none());
+        assert_eq!(app.source, edited);
+        assert_eq!(app.vm.memory()[0x123], 42);
+        assert!(app.example_browser.open);
+
+        app.request_example(bundled_example("glass.ib"));
+        click_label(&mut app, &ctx, "Discard edits and load");
+        assert!(app.pending_example.is_none());
+        assert_eq!(app.source, bundled_example("glass.ib").source);
+        assert_eq!(app.path, "glass-copy.ib");
+        assert_eq!(app.vm.memory()[0x123], 0);
+        assert!(!app.running);
+        assert!(!app.example_browser.open);
+    }
+
+    #[test]
+    fn escape_cancels_example_loading_then_closes_browser_before_exiting() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.example_browser.open = true;
+        app.source.push_str(" 1");
+        let edited = app.source.clone();
+        app.request_example(bundled_example("glass.ib"));
+        for (browser_open, closing) in [(true, false), (false, false), (false, true)] {
+            let output = ctx.run(
+                egui::RawInput {
+                    events: [true, false]
+                        .into_iter()
+                        .map(|pressed| egui::Event::Key {
+                            key: Key::Escape,
+                            physical_key: None,
+                            pressed,
+                            repeat: false,
+                            modifiers: Modifiers::NONE,
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
+                |ctx| app.ui(ctx),
+            );
+            assert!(app.pending_example.is_none());
+            assert_eq!(app.example_browser.open, browser_open);
+            assert_eq!(app.source, edited);
+            assert_eq!(
+                output
+                    .viewport_output
+                    .values()
+                    .flat_map(|output| &output.commands)
+                    .any(|command| matches!(command, egui::ViewportCommand::Close)),
+                closing,
+            );
+        }
+    }
+
+    #[test]
+    fn examples_button_search_and_load_work_without_sending_search_text_to_vm() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.editor = false;
+        click_label(&mut app, &ctx, "Examples");
+        assert!(app.example_browser.open);
+        click_label(
+            &mut app,
+            &ctx,
+            "Title, filename, description, contributor or source",
+        );
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![egui::Event::Text("plasma".into())],
+                ..Default::default()
+            },
+            |ctx| app.ui(ctx),
+        );
+        assert_eq!((app.vm.input() >> 16) & 255, 0);
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        for label in ["1 / 38 examples", "Plasma", "IBNIZ language manual"] {
+            assert!(output.shapes.iter().any(|shape| {
+                matches!(&shape.shape, egui::epaint::Shape::Text(text) if text.galley.text() == label)
+            }), "missing browser content: {label}");
+        }
+        click_label(&mut app, &ctx, "Load example");
+        assert_eq!(app.source, bundled_example("plasma.ib").source);
+        assert!(!app.running);
+        assert!(!app.example_browser.open);
     }
 
     #[test]

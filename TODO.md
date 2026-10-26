@@ -5,9 +5,9 @@ recording controls. The remaining improvements are not ranked.
 
 ## Example browser
 
-- [ ] Browse and load bundled examples inside the application.
-- [ ] Display descriptions, contributor credits, and source links.
-- [ ] Categorize examples into fractals, textures, music, and other groups.
+- [x] Browse and load bundled examples inside the application.
+- [x] Display descriptions, contributor credits, and source links.
+- [x] Categorize examples into fractals, textures, music, and other groups.
 
 ## Editor improvements
 

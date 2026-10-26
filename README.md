@@ -71,8 +71,9 @@ rsvg-convert --width 256 --height 256 --output assets/ibniz.png assets/ibniz.svg
 | Tab | Show / hide editor |
 | Ctrl/Cmd+S | Save to the file path above the editor |
 | Ctrl+Up / Ctrl+Down | Increment / decrement the hex digit under the cursor, with carry |
-| Esc | Close help, or exit when help is hidden |
+| Esc | Cancel example loading, close help or the example browser, otherwise exit |
 | Load / Save | Open / save the specified UTF-8 `.ib` file |
+| Examples | Browse, search and load bundled programs |
 
 The editor supports platform-standard selection, clipboard, word navigation
 and undo/redo. Changes recompile immediately **without resetting VM state**.
@@ -100,8 +101,29 @@ Counters persist across edits and pauses; F2 or loading a file resets them.
 Mouse coordinates, buttons and modifiers feed `U`. Hide the editor to send
 typed characters to the VM instead of editing. Files are saved exactly as
 entered; the original editor's `\#file` filename convention is replaced by
-the explicit file path field. Load and exit do not prompt to save, so save
-modified source first.
+the explicit file path field. File Load and exit do not prompt to save, so save
+modified source first. Loading a bundled example does ask before discarding edits.
+
+### Bundled example browser
+
+Click **Examples** to browse all 38 bundled programs, grouped into **Fractals**,
+**Textures**, **Music**, **Demos**, and **Other**. Search matches titles,
+filenames, descriptions, contributors and source collections, ignoring case.
+Select an example to see its description, named contributor (where provided),
+pinned source link, collection license and an optional read-only source preview.
+Collection maintainers are not assumed to have authored individual programs.
+
+**Load example** replaces the editor contents, resets the VM and audio queue,
+and pauses playback. Press **Run** when ready; some examples flash rapidly or
+produce loud noise. Unsaved edits require confirmation before replacement.
+The suggested save path is `<example>-copy.ib` in the current directory, not the
+bundled source file; change the path before saving if needed. Playback settings
+are retained. An active recording stays armed but capture pauses until Run.
+`oneliners.ib` is a commented collection: uncomment one program before running.
+
+Programs, metadata and license notices are embedded in the executable, so the
+browser works offline and outside the repository. Only opening external source
+links requires a web browser/network connection.
 
 ### Playback tuning
 

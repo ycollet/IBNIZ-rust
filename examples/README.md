@@ -8,6 +8,12 @@ are kept. Program bodies are unchanged; new files add attribution comments.
 **Warning:** some examples flash rapidly and produce loud noise. Start at
 low volume, or use `--no-audio`.
 
+In the desktop app, click **Examples** to search and filter all 38 embedded
+programs by category. The browser includes descriptions, contributor credits,
+pinned source links and collection license notices. Loading an example resets
+and pauses playback, asks before discarding edits, and suggests a local
+`<example>-copy.ib` save path. The browser works offline without this directory.
+
 From the project root:
 
 ```sh
