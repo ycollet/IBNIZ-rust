@@ -1018,19 +1018,24 @@ impl App {
                 status.audio_stack_pointer, status.instruction_pointer, self.last_instructions,
                 if status.stopped { "  TERMINATED" } else { "" },
             ));
-            if self.slow_video || self.slow_audio {
-                ui.colored_label(Color32::YELLOW, format!(
-                    "Instruction budget reached: video={}, audio={}. Raise Playback > Instructions/tick for complex programs.",
-                    if self.slow_video { "behind" } else { "ready" },
-                    if self.slow_audio { "behind" } else { "ready" },
-                ));
-            }
-            if let Some(render) = &self.render {
-                ui.small(format!(
-                    "Computing tick: {} / {} instructions ({} ms work slices)",
-                    render.instructions(), render.budget(), self.slice_ms,
-                ));
-            }
+            let budget_color = if self.slow_video || self.slow_audio {
+                Color32::YELLOW
+            } else {
+                ui.visuals().text_color()
+            };
+            ui.colored_label(budget_color, format!(
+                "Instruction budget: video={}, audio={}. Raise Playback > Instructions/tick for complex programs.",
+                if self.slow_video { "behind" } else { "ready" },
+                if self.slow_audio { "behind" } else { "ready" },
+            ));
+            let (instructions, budget) = self.render.as_ref().map_or(
+                (self.last_instructions, self.budget),
+                |render| (render.instructions(), render.budget()),
+            );
+            ui.small(format!(
+                "Tick work: {instructions} / {budget} instructions ({} ms work slices)",
+                self.slice_ms,
+            ));
             ui.label(format!(
                 "Late ticks: {} | Last tick: {:.1} ms / 16.7 ms | Audio budget misses: {}",
                 self.late_ticks, self.last_tick_duration.as_secs_f64() * 1000.0,
@@ -2078,6 +2083,55 @@ mod tests {
         assert!(app.compile_error.is_none());
         app.reset();
         assert_eq!(app.vm.status().frame, 0);
+    }
+
+    #[test]
+    fn playback_status_layout_stays_stable_between_render_slices() {
+        fn status_position(app: &mut App, ctx: &egui::Context, width: f32) -> egui::Pos2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(width, 700.0),
+                )),
+                ..Default::default()
+            };
+            let _ = ctx.run(input.clone(), |ctx| app.ui(ctx));
+            let output = ctx.run(input, |ctx| app.ui(ctx));
+            output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text)
+                        if text.galley.text().starts_with("Late ticks:") =>
+                    {
+                        Some(text.pos)
+                    }
+                    _ => None,
+                })
+                .expect("playback diagnostics")
+        }
+
+        for width in [640.0, 1080.0] {
+            let ctx = egui::Context::default();
+            let mut app = app();
+            app.source = "w8r-sqwqd*&w1~&+".into();
+            app.recompile();
+            let idle = status_position(&mut app, &ctx, width);
+
+            let mut render = app.vm.begin_frame(app.budget);
+            assert!(render.advance(&mut app.vm, 1024).is_none());
+            app.render = Some(render);
+            assert_eq!(status_position(&mut app, &ctx, width), idle);
+
+            app.render = None;
+            app.last_instructions = app.budget;
+            app.slow_video = true;
+            app.slow_audio = true;
+            assert_eq!(status_position(&mut app, &ctx, width), idle);
+
+            app.reset();
+            assert_eq!(status_position(&mut app, &ctx, width), idle);
+        }
     }
 
     #[test]
