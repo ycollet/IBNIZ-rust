@@ -64,9 +64,9 @@ impl State {
         if !self.volume.is_finite()
             || !(0.0..=1.0).contains(&self.volume)
             || self.budget < 4
-            || !(1..=12).contains(&self.slice_ms)
+            || !(1..=64).contains(&self.slice_ms)
             || ![15, 30, 60].contains(&self.preview_fps)
-            || !(20..=200).contains(&self.buffer_ms)
+            || !(20..=super::audio::MAX_BUFFER_MS).contains(&self.buffer_ms)
         {
             return Err("Invalid playback settings in NSM state".into());
         }
@@ -642,6 +642,19 @@ pub(super) mod tests {
             preview_fps: 60,
             buffer_ms: 80,
         }
+    }
+
+    #[test]
+    fn playback_settings_accept_expanded_limits_and_reject_values_above_them() {
+        let mut state = state();
+        state.slice_ms = 64;
+        state.buffer_ms = 1024;
+        assert!(state.validate().is_ok());
+        state.slice_ms = 65;
+        assert!(state.validate().is_err());
+        state.slice_ms = 64;
+        state.buffer_ms = 1025;
+        assert!(state.validate().is_err());
     }
 
     #[test]

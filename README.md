@@ -241,8 +241,15 @@ The **Playback** menu changes settings live, without resetting the VM:
 |---------|--------|
 | Preview refresh: 15 / 30 / 60 fps | Limits display texture updates; defaults to 60 fps. VM execution and 60 fps recordings are unchanged. |
 | Instructions/tick | Total VM instruction limit, initially `--max-instructions`. Changes apply to the next tick; higher limits allow more complex expressions but can slow playback. |
-| Work slice: 1-12 ms | VM work per UI update, default 6 ms. Lower values favor editor responsiveness; higher values favor throughput. |
-| Minimum audio buffer: 20-200 ms | Startup/recovery buffering, default 80 ms. Higher values tolerate jitter at the cost of playback latency. |
+| Work slice: 1-64 ms | VM work per UI update, default 6 ms. Lower values favor editor responsiveness; higher values favor throughput. |
+| Minimum audio buffer: 20-1024 ms | Startup/recovery buffering, default 80 ms. Higher values tolerate jitter at the cost of playback latency. |
+
+If you hear audio dropouts or see **Stream gaps** increasing, try increasing
+**Work slice** and/or **Minimum audio buffer** in the **Playback** menu.
+A larger work slice gives the VM more time to produce audio per UI update,
+while a larger buffer helps absorb scheduling delays. These adjustments can
+reduce or eliminate gaps, at the cost of editor responsiveness and playback
+latency, respectively.
 
 Expensive ticks resume across UI updates rather than blocking for their entire
 instruction budget. Work-slice deadlines are checked every 1,024 instructions;
@@ -254,11 +261,12 @@ between UI updates.
 
 Audio resampling happens outside the output-queue lock. Playback waits for real
 samples instead of padding the queue with silence. After starvation, the buffer
-target grows by 20 ms, up to 200 ms, before resuming; short 5 ms fades soften
+target grows by 20 ms, up to 1024 ms, before resuming; short 5 ms fades soften
 the transition to and from silence. The status bar shows queued audio and the
 current target. Pause/reset clears queued audio and restores the selected
-minimum; changing the minimum sets the target immediately. The queue remains
-capped at 250 ms, with discarded samples reported by the existing counter.
+minimum; changing the minimum sets the target immediately. The queue is capped
+at the larger of 250 ms or the current target plus 50 ms, with discarded samples
+reported by the existing counter.
 
 These changes tolerate short scheduling delays; they cannot make a program
 that consistently produces audio too slowly play continuously. Sustained

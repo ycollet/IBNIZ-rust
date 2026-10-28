@@ -934,18 +934,18 @@ impl App {
                              expressions but may slow playback. No VM reset.",
                         );
                     });
-                    ui.add(egui::Slider::new(&mut self.slice_ms, 1..=12).text("Work slice (ms)"))
+                    ui.add(egui::Slider::new(&mut self.slice_ms, 1..=64).text("Work slice (ms)"))
                         .on_hover_text(
                             "Maximum VM work per UI update, checked every 1024 instructions. \
                              Lower values favor editor responsiveness; higher values favor throughput. \
                              Finishing a tick also converts its video image.",
                         );
                     if ui.add(
-                        egui::Slider::new(&mut self.buffer_ms, 20..=200)
+                        egui::Slider::new(&mut self.buffer_ms, 20..=audio::MAX_BUFFER_MS)
                             .text("Minimum audio buffer (ms)"),
                     ).on_hover_text(
                         "More buffering tolerates scheduling jitter but adds latency. \
-                         The target grows automatically after underruns, up to 200 ms.",
+                         The target grows automatically after underruns, up to 1024 ms.",
                     ).changed() && let Some(audio) = &mut self.audio {
                         audio.set_buffer_ms(self.buffer_ms);
                     }

@@ -9,6 +9,7 @@ use ibniz::SAMPLE_RATE;
 use crate::dc_blocker::DcBlocker;
 
 pub const DEFAULT_BUFFER_MS: u32 = 80;
+pub const MAX_BUFFER_MS: u32 = 1024;
 
 struct Shared {
     samples: VecDeque<f32>,
@@ -61,7 +62,8 @@ impl Shared {
     }
 
     fn set_buffer_ms(&mut self, ms: u32) {
-        self.minimum_buffer = self.device_rate as usize * ms.clamp(20, 200) as usize / 1000;
+        self.minimum_buffer =
+            self.device_rate as usize * ms.clamp(20, MAX_BUFFER_MS) as usize / 1000;
         self.target_samples = self.minimum_buffer;
     }
 
@@ -87,7 +89,7 @@ impl Shared {
             if self.playing && self.started {
                 self.missing_samples += 1;
                 self.target_samples = (self.target_samples + self.device_rate as usize / 50)
-                    .min(self.device_rate as usize / 5);
+                    .min(self.device_rate as usize * MAX_BUFFER_MS as usize / 1000);
             }
         }
         sample
@@ -182,7 +184,8 @@ impl Audio {
         self.resample_phase -= end;
         let mut shared = self.shared.lock().expect("audio queue poisoned");
         shared.samples.extend(self.resampled.iter().copied());
-        let maximum = self.device_rate as usize / 4;
+        let maximum = (shared.target_samples + self.device_rate as usize / 20)
+            .max(self.device_rate as usize / 4);
         if shared.samples.len() > maximum {
             let excess = shared.samples.len() - maximum;
             shared.samples.drain(..excess);
@@ -355,21 +358,38 @@ mod tests {
     fn adaptive_buffer_is_bounded_and_clear_restores_the_selected_minimum() {
         let mut shared = shared();
         shared.playing = true;
-        for _ in 0..20 {
+        for _ in 0..60 {
             shared.samples.resize(shared.target_samples, 0.0);
             while !shared.samples.is_empty() {
                 assert_eq!(shared.next_sample(), Some(0.0));
             }
             assert_eq!(shared.next_sample(), None);
-            assert!(shared.target_samples <= 200);
+            assert!(shared.target_samples <= 1024);
         }
-        assert_eq!(shared.target_samples, 200);
+        assert_eq!(shared.target_samples, 1024);
         shared.clear();
         assert_eq!(shared.target_samples, 20);
         assert!(!shared.started);
         assert!(shared.buffering);
         shared.set_buffer_ms(100);
         assert_eq!(shared.target_samples, 100);
+    }
+
+    #[test]
+    fn maximum_buffer_waits_for_the_selected_duration_and_survives_underruns() {
+        let mut shared = shared();
+        shared.set_buffer_ms(1024);
+        shared.playing = true;
+        shared.samples.resize(1023, 0.5);
+        assert_eq!(shared.next_sample(), None);
+        shared.samples.push_back(0.5);
+        for _ in 0..1024 {
+            assert_eq!(shared.next_sample(), Some(0.5));
+        }
+        assert_eq!(shared.next_sample(), None);
+        assert_eq!(shared.target_samples, 1024);
+        shared.clear();
+        assert_eq!(shared.target_samples, 1024);
     }
 
     #[test]
