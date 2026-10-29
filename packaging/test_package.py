@@ -113,6 +113,26 @@ class PackagingTests(unittest.TestCase):
                            for name in sorted(names))
         self.assertEqual((self.work / "SHA256SUMS").read_text(), expected)
 
+    def test_windows_unversioned_documentation_has_separate_component_keypaths(self):
+        namespace = {"w": "http://wixtoolset.org/schemas/v4/wxs"}
+        tree = ET.parse(package.ROOT / "packaging/ibniz.wxs")
+        feature = tree.find("w:Package/w:Feature", namespace)
+        references = {ref.attrib["Id"] for ref in feature.findall("w:ComponentRef", namespace)}
+        for name in ["LICENSE", "README.md"]:
+            with self.subTest(name=name):
+                source = "$(var.RepoRoot)\\" + name
+                components = [
+                    component for component in tree.findall(".//w:Component", namespace)
+                    if any(file.attrib["Source"] == source
+                           for file in component.findall("w:File", namespace))
+                ]
+                self.assertEqual(len(components), 1)
+                component = components[0]
+                files = component.findall("w:File", namespace)
+                self.assertEqual(len(files), 1)
+                self.assertEqual(files[0].attrib["KeyPath"], "yes")
+                self.assertIn(component.attrib["Id"], references)
+
 
 if __name__ == "__main__":
     unittest.main()

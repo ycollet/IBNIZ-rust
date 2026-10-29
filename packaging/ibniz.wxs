@@ -20,9 +20,11 @@
           <Environment Id="CommandLinePath" Name="PATH" Value="[INSTALLFOLDER]"
                        Part="last" Action="set" System="yes" />
         </Component>
-        <Component Id="Documentation" Guid="*">
+        <Component Id="License" Guid="*">
           <File Source="$(var.RepoRoot)\LICENSE" KeyPath="yes" />
-          <File Source="$(var.RepoRoot)\README.md" />
+        </Component>
+        <Component Id="Readme" Guid="*">
+          <File Source="$(var.RepoRoot)\README.md" KeyPath="yes" />
         </Component>
       </Directory>
     </StandardDirectory>
@@ -37,7 +39,8 @@
     </StandardDirectory>
     <Feature Id="MainFeature" Title="IBNIZ Rust" Level="1">
       <ComponentRef Id="Application" />
-      <ComponentRef Id="Documentation" />
+      <ComponentRef Id="License" />
+      <ComponentRef Id="Readme" />
       <ComponentRef Id="StartMenuDirectory" />
     </Feature>
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
