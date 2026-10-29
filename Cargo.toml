@@ -1,6 +1,6 @@
 [package]
 name = "ibniz"
-version = "0.1.0"
+version = "1.0.1"
 edition = "2024"
 rust-version = "1.88"
 description = "A Rust implementation of the IBNIZ audiovisual virtual machine"
