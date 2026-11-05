@@ -6,6 +6,10 @@ code editor, realtime video and sound, a reusable VM library, and headless
 PPM/WAV rendering. This is an **altered implementation**, not the original C
 distribution.
 
+## Screenshot
+
+![screenshot](ibniz-rust.png)
+
 ## Installers
 
 Pushed version tags produce installers on the repository's **GitHub Releases**
