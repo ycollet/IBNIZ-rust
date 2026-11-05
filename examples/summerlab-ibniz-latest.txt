@@ -1,0 +1,463 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ATELIER IBNIZ - GUILLAUME B (ENTRE AUTRES)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+fait-main / love on the bit
+
+télécharger, installer ibniz : http://codelab.fr/3074
+Et la doc ibniz : http://etherpad.pingbase.net/doc-ibniz
+Jouer ibniz en live:  http://ibniz.asiekierka.pl/ibniz.html
+
+summerlab 2016 : anna-louise 
+
+\ vArs d0100.0111* * ) 1.001* EEE34@//+ \ n&b miroir
+\ 5rssssssss M d2r1101.0100&*ssq , 0.4* \ binary jet
+\ [Er3.A| d7*<]FF.7F* M d3rEF2^* \ gluon
+\ C*, d000*! d00r 101.FD0+ Mppp \ new new sleep 2
+\ FDXd3.01&*L M 0.273*sd>?-1; \muon
+\ wEEE33@2/r-dv*vv.1& \trumpet rmx
+\ dFFrxFr00FF&/qsM1{d5rx2r3&/q}2{dxDrF&/q}3{dFrF&/s}1V.A/2V.3*3V \angelic hysteron isogamete 5'15
+\ C*, d111*! d00r 100.FD1+Mppp \ new new sleep
+\ 03rd1r-1r9F*1{dAr+}2{d1r^}3{dFr*}4{dFr-}2)7r3&1+V \ smmrlb2017
+
+
+-----------------------------------------------------------------------  code fanfare ibniz
+
+\dFFrxFr.F8FF&/qs \cinderella berkelium canoe 2'29 (emoc)
+
+\1{dFFrx.1r3&/qs}2{dFrx.Fr3&/qs}1V.F/2V \cheeky anthracite bacteria 1'29  (emoc)
+
+\FXE33FF@rLd2r.003** \snotty ice-cream electrode (emoc)
+
+\FFrdFr-8rFF*Mppp \ sleep (emoc)
+
+\dr*/8rsM1{7rsss.3^}2{s}3{d1e^ddd}5Fr/4X11r1Vs3Vs1Vs3VL \amateurish disintegration 1'19 (emoc)
+
+\dFFrxFr00FF&/qsM1{d5rx2r3&/q}2{dxDrF&/q}3{dFrF&/s}1V.A/2V.3*3V \angelic hysteron isogamete 5'15  (emoc)
+
+\1{d6r+}2{d4r^}3{d3r*}4{dFr-}2)7r3&1+V \lettuce fumigation inhaler (emoc)
+
+\d*vs.01*M1{d23r3F|/}2{d7Fr33&*}3{d2r36F&*}4{dCCr|}4V3V1V2V4V1V \glucophage nut margarine 1'29 (emoc)
+
+\wEEE33@2/r-dv*vv.1& \Trumpet remix (emoc)
+
+\ ddds**qFF/* \ reset (emoc)
+
+\FFrd1r-9rFF*1{dFr+}2{d4r^}3{d3r*}4{dFr-}2)7r3&1+V \ summerlab 2012 (emoc)
+
+\2{dEFrss}3{dd55*}1.F*2V*3V*/ss \nutcracker drag race 3'33 (emoc)
+
+\dx7rd*-qq6rsMdArd*-.FF*qqqs \elongate generosity potion 4:34 (emoc)
+
+\vFFr4/vs--2/M1{d3r3&*}2{d7r3&*}3{d2r3&*}1V2V3VsFF/ \average butane cicada 0'59  (emoc)
+
+\1{d4r}2{d6rsss}3{dd55*}2V*3V*/qsM1{d4r}2{d6rsss}3{dd55*}.1*2V*3V*/ss \ostrich junkie invader (emoc)
+
+\dFFrx.1r3&/qsM1{d.3*d.2*d.F*d.44/d.33*d4r55r}2{d1r|d3r^d1r*q}1V1V2V.3*d.07/ \aphasia corrodible bruise 0'39  (emoc)
+
+\EAA22@*364*qs) \chubby chloroform ornithology  (emoc)
+
+\d8|EEE33@FFF/&* \premium spinal tofu 7'47  (emoc)
+
+\1{d6&6^*}2{dF&EEE33@FF/^*}3{dFF^r}1V2V3V \black magic sunbathing    (emoc)
+
+\2{wEEE33@A/r-dv*vvF.F&}1{.02&s}1V2VFF^F& \chimpanzee lagoon bingo (emoc)
+
+
+\r1zrqst \drone aigu (diane)
+
+\q8*s \beat simple (diane)
+
+\4* \note simple (diane)
+
+\rtdza \souris ecrasee (diane)
+
+\5cF--zq3r \croushtcroc (diane)
+
+\w2r-dv*vv \tv drone (diane)
+
+\dDE.40&D8r* \melo? (diane)
+
+d9r66p&*4 \drone2beat (diane)
+
+-------- -> mitoufflon < ------------
+
+\1{d+z4%zEiw*+**}  
+\2{d+w4%zAiw*+**} 
+\{d+z4%z9iw*+*} 
+\4{d+z4%zCiw*+**}
+\5{d+i4%z8iw*+**}
+\6{diz4%z8iw*+**}
+\7{d+iz4%z7iw*+*}
+\8{d+iwz4%z5iw*+**}
+\2)4r7&1+V
+
+\ilw5lw|lwP*d23lw+* 
+
+\q104xs^Edzq.z2ui10w{+iiii*}xxxx+++ 
+
+\q4dzzp*++ 
+
+\^z1x2
+
+\^x5r+Md5r&wsss*6/2+sddd
+
+\d1r2&*s>x.^4.^BwlPq+4.
+
+\drdrdrdrdrsdrdssssp5+
+
+\1{d+z4%zAiw*+**}
+\2{d+z4%zAiw*+**}
+\3{d+z4%z9iw*+**}
+\4{d+z4%zCiw*+**}
+\5{d+z4%z8iw*+*}
+\6{d+z3%z7iw*+**}
+\7{d+z4%z7iw*+**}
+\8{d+z4%z5iw*+**}
+\2)3r7&1+V
+
+
+//yop\\yop//
+1{d+z3%zAiw*+**q}
+2{d+z3%zAiw*+i*}
+3{d+z4%z4iw*+**3q}
+4{d+z4%zDiqw*+**}
+5{d+z4%zDiw*+*w}
+6{d+z3%zAiw*+**9q}
+7{d+z3%z8iq3w*+*s+3}
+8{d+z2%zAiw*+**}
+2)4r7&1+V
+
+\d+z4%zAiw*+**
+
+\diaqz1%z3iw*+**
+
+\draspssq&z%z5iw*+*+
+
+\trop colle
+d2r01&*s>x.^
+wlrq11q.EFw*01P+
+
+\beater drone
+\drqz%szq.zEuiw+++.++
+
+\rqs72
+
+\clochette
+\zaqz%sz.z4uiw****=+.
+
+\\drone
+\d+z4%z9iw*+**
+
+\diaqz
+
+\zaqz%sz.z4uiw****=+
+
+\carre-carre
+\d*D+9dr
+
+\v5rswP
+
+\q104xs^Edzq.z2ui10w{+iiii*}xxxx++++
+
+\q8dzzp*++
+
+TRUCS UTILES
+-------------------------------------------------------------------------------------------------------------
+
+Un séquenceur à 8 positions
+
+\1{}2{}3{}4{}5{}6{}7{}8{}2)4r7&1+V
+
+placer le code dans les accolades, la seconde partie s'occupe de la rotation des séquences
++ pour incrémenter, v pour appeler une sous routine
+
+Une sorte de random en allant chercher une valeur dans la mémoire
+
+EEE33@*
+
+Couleur pure
+ppp 62 D3 .3F
+changer les blocs 62 et D3 pour modifier la teinte, ou le bloc 3F pour modifier la luminosité
+vire les 3 valeurs de la pile (pop pop pop) pour remplacer par une valeur fixe. Avec ppp, on fait aussi basculer en mode tyx (voir en bas de la fenêtre)
+
+
+EXEMPLES
+------------------------------------------------------------------------------------------------------------- par viznut
+
+Shortest IBNIZ programs that show something "nice"
+
+All 0-2-char-long programs that stackbalance to +1 in T- or TXY-video
+have been tested.
+
+EMPTY PROGRAM:
+- gradient & sawtooth
+
+1-CHARRERS:
+- flasher slowing down: q
+- glitchy halfscreen: (
+- colorfade: !
+
+2-CHARRERS:
+- tv noise: *d
+- trippy & whining rotator: d*
+- *-textured headache: -d
+- zooming *-texture: **
+- stopping near negative star: */
+- mcp: %* %/ %* %%
+- gradual art: %a
+- spotlights among *-textures: a* a/ a%
+- flasher: 9/
+- plasmas: Al
+- moving glitchsquares: )(
+- jupiter storm: +/ +%  -/ -% r/ r% l/ l%
+- blinking stripes: +r +l -r -l
+- stopping in hyperspace: /* // /%
+- stuff with sierpinski triangles: &* && |* |/ |% &- |a
+- munching epilepsy: ^* ^/ ^%
+- polyrhythmic flasher slowing down: qs
+- noisy bar scrolling down slowly: q)  
+- random squeaks: q@
+- noisy bar in a *-textured night: s)
+- squarewave sliding down: )~
+
+
+----------------------------------------------------------------------------------------------------------- par T. Tjm
+
+\*^8~r \Rose Garden
+
+\w8r- \Color Pattern
+\w8r-dv*vv5& \Trumpet sound
+
+\^xr/aw \Mono tone Patterns
+\^xr/awr \Shadow of Mandelbrot?
+
+\1*t^a \Painting by Munching Squares
+
+\3*rd+awd \Gray Patterns
+\1*rd*awd \NUMBERS/ARITHMETIC variations
+\1*rd+awdq \Gray Patterns - A melody changes automatically
+\2*rawddwr \Bar graph - A melody changes automatically
+
+\42Melody will change much more intricately, if the fraction part is used.
+\d15.37&C4r*
+\d18.38&5Br*
+\d38.3B&21r*
+\d51.13&01r*
+\d51.84&E2r*
+\dB0.2B&22r*
+\dB0.2B&24r* \etc.
+
+\No sound, only visual
+\d7*xr/31a/ \Radiation
+\d7*xr/31a/q^w \Reverse rotations
+\d7*xr/31a/q^w*- \Four rotations
+\d7*xr/31a/q^w*v*vv
+\d7*xr/31a/q^w*v*vvsq \etc.
+
+\Fractal variations
+\ddrp&+ \Xor texture
+\ddrp&- \Xor texture plus Sierpinski triangle
+\ddrp&^ \Xor texture color change
+\ddrp&* \PastelColor Fractal
+\ddrp&% \B&W Fractal
+\ddrp&/ \FlowerColor Fractal
+\ddrp&/qq Md7Dr83&* \The Fractal Kingdom - Rise and Downfall
+
+\dw+arp&/ \Fractal Flower Garden, another Fractal variations (slow speed)
+
+\d*v*vv* \Striped pattern in MS-DOS and Tower of Chaos in Javascript
+
+-------------------------------------------------------------------------------------------------------- par Glisic
+
+\a/
+\a*
+\1%/*
+\200+wa^*za 
+\10^a/
+\aw^10000r/100 t/
+\aw%10000r/100 t/
+\d10^a/*
+\d10^a//
+\s^50a/^^
+\b^50a/^^
+\s^50a/s
+\s^50a*s
+\20+wa^*
+\1-was% *+
+\w^aa#!
+\rw^a*/
+\wa9*%*++
+\wsa9*%*s++
+\^wa*++
+\10aw&ws* s
+\18001aw&w*s
+\wrr^&f*q
+\s1++%
+\tw+1+s*100/s%++
+\sv~9rss-+
+\a9d1a+aw+a9/+%
+\a9d1a+aw+a9//
+\a100d1a+avAaw9++vwx900a/a****
+\a1d1a*aAaw1++wx9a/a**** 
+
+---------------------------------------------------------------------- autres exemples de viznut
+
+=== EXAMPLES ===
+
+\ 2-character programs:
+\*d \ TV noise (without sound)
+\** \ Mul-texture zoomer
+\9/ \ Flasher
+\+/ \ "Jupiter storm"
+\+% \ "Jupiter storm" in B&W
+\/% \ Perspective mapper
+\&* \ Sierpinski epilepsy
+\qs \ Polyrhythmic flasher slowing down
+\)~ \ Sliding-down squarewave
+
+\ "42 melody"
+\d3r15&*
+
+\ Plasma
+\sv5rvs--
+
+\ Munching squares with a Sierpinski harmony
+\^x7r+Md8r&
+
+\ Xor texture zoomer
+\v8rsdv*vv*^
+
+\ Music from the video
+\d6r|5*wdAr&+
+
+\ "Opening gate" (from FreeFull)
+\8rw10r%w18r%
+
+\ "Spinny" (from FreeFull)
+\sxsaxAr+waxBr+^
+
+\ Munching squares zoomer
+\v8rsdv*vv*^wpp8r-
+
+\ Texture tunnel
+\ax8r+3lwd*xd*+q1x/x5r+^
+
+\ Rotozoomer
+\v8rds4X3)Lx~2Xv*vv*+i!L1@2@&
+
+\ Mandelbrot zoomer (76 chars)
+\vArs1ldv*vv*0!1-1!0dFX4X1)Lv*vv*-vv2**0@+x1@+4X1)Lv*vv*+4x->?Lpp0:ppRpRE.5*;
+
+\ Julia morpher (from real_het) (97 chars)
+\2*2!2*3!10rdF2*s0!F9*s1!10,6![2@d3@*4!d*2!3@d*3!3@2@+2@3@-0@+2!4@d+1@+3!4-<6@1-d6!*]6@4r.FF^1977+
+
+\ The 122-char demo from the video
+\6{^^ddd***1%}5{v8rsdv*vv*^wpp8r-}4{v8rdsx.6+s4X3)Lx~2Xv*vv*+i!L1@2@^}3{ax8r+3lwd*xd*+q1x/x6r+^}2)6r3&3+V55A9^Md6r|5*wdAr&+
+
+\ Bitmap zoomer from the video
+v7rs6ldv*vv*7&@xr.8&$b
+00000000000000000000000000000000
+00000000011110111010010011101110
+00000000010000010010110100100100
+00000000001000010011010011100100
+00000000000100010010010100100100
+00000000000010010010010100100100
+00000000011110111010010011101110
+00000000000000000000000000000000
+
+----------------------------------------------------------------------------------------------
+
+\ Some examples
+\ (uncomment and run)
+
+\ ^x6r-
+\ ddd***
+\ d3r15&*
+\ dd6r*3r&
+\ ^x7r+Md8r&
+\ v8rsdv*vv*^
+\ d6r|5*wdAr&+
+\ v8rsdv*vv*^wpp8r-
+\ ax8r+3lwd*xd*+q1x/x5r+^
+\ v8rds4X3)Lx~2Xv*vv*+i!L1@2@&
+
+\ 6{^^ddd***1%}5{v8rsdv*vv*^wpp8r-}4{v8rdsx.6+s4X3)Lx~2Xv*vv*+i!L1@2@^}3{ax8r+3lwd*xd*+q1x/x6r+^}2)6r3&3+V55A9^Md6r|5*wdAr&+
+
+-------------------------------------------------------------------------------------------------- geb
+
+\\\\\\\\\\\\\\\\
+\ Speeders
+\\\\\\\\\\\\\\\\
+1{ffd+}
+
+\\\\\\\\\
+\ Beats
+\\\\\\\\\
+\ Graves
+2{ddrs++dd&+1}
+3{ddrs+}
+4{drrsD5k6a}
+5{dzst}
+5{ddrst+1**1}
+\Aigus
+6{rsD++dd2}
+
+\\\\\\\\\\\\\\
+\ Drones
+\\\\\\\\\\\\\\
+7{d1r26p&+1}
+8{d6r64p&*7}
+9{ddddpppdrst*}
+
+\\\\\\\\\\\\\\
+\ buzz
+\\\\\\\\\\\\\\
+A{fs}
+B{fss}
+C{ffd+}
+
+\\\\\\\\\\\\\\\
+\ Useless
+\\\\\\\\\\\\\\\\
+\rr++31U
+
+\\\\\\
+\ noise me tender
+\\\\\\
+5{ddrst+1**1}
+8{d6r64p&*7} \.FF
+\1*8V
+\2V 
+\3V
+\4V
+\6V
+\ddd**
+
+\\ decrassage
+\d1rst+*1
+\ddrstddsrt
+\ddrs++1*1
+\ddlst++1*1
+\dddrlst++1*1
+\ddddrla++1
+\ddddrst++1
+\ddrs++1*1
+\ddrs++1
+\dFr1+*1p
+\drst
+
+\M
+\*1r1
+
+\p%1**1.A
+
+Summerlab2014
+d7r*s4{s4+r4}
+\d2r21m
+\d1m3s+1  
+//s+, s++, s+++ avec 1 variable grâce à controle fleche haut ou bas ce qui donne aussi :
+\d1m3s++1
+\d3s3r*
+\*5m3
+\*5dd3{m*s5}
+

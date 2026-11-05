@@ -92,3 +92,6 @@ are retained where provided by the sources.
 [manual]: https://github.com/viznut/IBNIZ/blob/3ba06ae5f2cf5765c0e06874a093f767054b6359/src/ibniz.txt
 [jibniz]: https://github.com/flupe/jibniz/blob/009c312c06938cf30d3b1b50572c51989f0f80ee/index.html
 [ibnjs]: https://github.com/uones/ibnjs/blob/03314c9bdb5379527dd0899f168c5e32bd339d41/index.html
+
+The file summerlab-ibniz-latest.txt came from thie [website](https://ressources.labomedia.org/ibniz).
+
