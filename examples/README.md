@@ -93,5 +93,7 @@ are retained where provided by the sources.
 [jibniz]: https://github.com/flupe/jibniz/blob/009c312c06938cf30d3b1b50572c51989f0f80ee/index.html
 [ibnjs]: https://github.com/uones/ibnjs/blob/03314c9bdb5379527dd0899f168c5e32bd339d41/index.html
 
-The file summerlab-ibniz-latest.txt came from thie [website](https://ressources.labomedia.org/ibniz).
+## Extra files
 
+The file summerlab-ibniz-latest.txt came from this [website](https://ressources.labomedia.org/ibniz).
+The file shortest_ibniz_programs.txt cam from this [website](https://web.archive.org/web/20190915062423/http://low.fi/~viznut/shortest_ibniz_programs.txt)

@@ -1,0 +1,38 @@
+Examples retrieves from https://web.archive.org/web/20190915062423/http://low.fi/~viznut/shortest_ibniz_programs.txt
+
+Shortest IBNIZ programs that show something "nice"
+
+All 0-2-char-long programs that stackbalance to +1 in T- or TXY-video
+have been tested.
+
+EMPTY PROGRAM:
+- gradient & sawtooth
+
+1-CHARRERS:
+- flasher slowing down: q
+- glitchy halfscreen: (
+- colorfade: !
+
+2-CHARRERS:
+- tv noise: *d
+- trippy & whining rotator: d*
+- *-textured headache: -d
+- zooming *-texture: **
+- stopping near negative star: */
+- mcp: %* %/ %* %%
+- gradual art: %a
+- spotlights among *-textures: a* a/ a%
+- flasher: 9/
+- plasmas: Al
+- moving glitchsquares: )(
+- jupiter storm: +/ +%  -/ -% r/ r% l/ l%
+- blinking stripes: +r +l -r -l
+- stopping in hyperspace: /* // /%
+- stuff with sierpinski triangles: &* && |* |/ |% &- |a
+- munching epilepsy: ^* ^/ ^%
+- polyrhythmic flasher slowing down: qs
+- noisy bar scrolling down slowly: q)  
+- random squeaks: q@
+- noisy bar in a *-textured night: s)
+- squarewave sliding down: )~
+
