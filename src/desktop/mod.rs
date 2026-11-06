@@ -19,6 +19,7 @@ use audio::Audio;
 use recording::Recording;
 
 const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / 60);
+const MAX_WORK_SLICE_MS: u64 = 128;
 
 pub fn launch(options: Options, program: Program) -> eframe::Result {
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../assets/ibniz.png"))
@@ -934,7 +935,7 @@ impl App {
                              expressions but may slow playback. No VM reset.",
                         );
                     });
-                    ui.add(egui::Slider::new(&mut self.slice_ms, 1..=64).text("Work slice (ms)"))
+                    ui.add(egui::Slider::new(&mut self.slice_ms, 1..=MAX_WORK_SLICE_MS).text("Work slice (ms)"))
                         .on_hover_text(
                             "Maximum VM work per UI update, checked every 1024 instructions. \
                              Lower values favor editor responsiveness; higher values favor throughput. \
@@ -943,10 +944,11 @@ impl App {
                     if ui.add(
                         egui::Slider::new(&mut self.buffer_ms, 20..=audio::MAX_BUFFER_MS)
                             .text("Minimum audio buffer (ms)"),
-                    ).on_hover_text(
+                    ).on_hover_text(format!(
                         "More buffering tolerates scheduling jitter but adds latency. \
-                         The target grows automatically after underruns, up to 1024 ms.",
-                    ).changed() && let Some(audio) = &mut self.audio {
+                         The target grows automatically after underruns, up to {} ms.",
+                        audio::MAX_BUFFER_MS,
+                    )).changed() && let Some(audio) = &mut self.audio {
                         audio.set_buffer_ms(self.buffer_ms);
                     }
                     ui.small("Preview refresh does not change VM or 60 fps recording quality.");

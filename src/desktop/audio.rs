@@ -9,7 +9,7 @@ use ibniz::SAMPLE_RATE;
 use crate::dc_blocker::DcBlocker;
 
 pub const DEFAULT_BUFFER_MS: u32 = 80;
-pub const MAX_BUFFER_MS: u32 = 1024;
+pub const MAX_BUFFER_MS: u32 = 2048;
 
 struct Shared {
     samples: VecDeque<f32>,
@@ -358,15 +358,15 @@ mod tests {
     fn adaptive_buffer_is_bounded_and_clear_restores_the_selected_minimum() {
         let mut shared = shared();
         shared.playing = true;
-        for _ in 0..60 {
+        for _ in 0..MAX_BUFFER_MS.div_ceil(20) {
             shared.samples.resize(shared.target_samples, 0.0);
             while !shared.samples.is_empty() {
                 assert_eq!(shared.next_sample(), Some(0.0));
             }
             assert_eq!(shared.next_sample(), None);
-            assert!(shared.target_samples <= 1024);
+            assert!(shared.target_samples <= MAX_BUFFER_MS as usize);
         }
-        assert_eq!(shared.target_samples, 1024);
+        assert_eq!(shared.target_samples, MAX_BUFFER_MS as usize);
         shared.clear();
         assert_eq!(shared.target_samples, 20);
         assert!(!shared.started);
@@ -378,18 +378,29 @@ mod tests {
     #[test]
     fn maximum_buffer_waits_for_the_selected_duration_and_survives_underruns() {
         let mut shared = shared();
-        shared.set_buffer_ms(1024);
+        shared.set_buffer_ms(MAX_BUFFER_MS);
         shared.playing = true;
-        shared.samples.resize(1023, 0.5);
+        shared.samples.resize(MAX_BUFFER_MS as usize - 1, 0.5);
         assert_eq!(shared.next_sample(), None);
         shared.samples.push_back(0.5);
-        for _ in 0..1024 {
+        for _ in 0..MAX_BUFFER_MS {
             assert_eq!(shared.next_sample(), Some(0.5));
         }
         assert_eq!(shared.next_sample(), None);
-        assert_eq!(shared.target_samples, 1024);
+        assert_eq!(shared.target_samples, MAX_BUFFER_MS as usize);
         shared.clear();
-        assert_eq!(shared.target_samples, 1024);
+        assert_eq!(shared.target_samples, MAX_BUFFER_MS as usize);
+    }
+
+    #[test]
+    fn selected_buffer_is_clamped_to_the_supported_range() {
+        let mut shared = shared();
+        shared.set_buffer_ms(MAX_BUFFER_MS + 1);
+        assert_eq!(shared.minimum_buffer, MAX_BUFFER_MS as usize);
+        assert_eq!(shared.target_samples, shared.minimum_buffer);
+        shared.set_buffer_ms(0);
+        assert_eq!(shared.minimum_buffer, 20);
+        assert_eq!(shared.target_samples, shared.minimum_buffer);
     }
 
     #[test]

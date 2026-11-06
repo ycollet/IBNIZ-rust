@@ -84,7 +84,7 @@ pub struct FrameRender {
     budget: usize,
     instructions: usize,
     audio_start: usize,
-    audio_target: u64,
+    audio_target: i64,
     audio: Option<Vec<i16>>,
     audio_complete: bool,
     finished: bool,
@@ -107,20 +107,18 @@ impl FrameRender {
         let mut remaining = slice_instructions;
         if self.audio.is_none() {
             while vm.audio_enabled && !vm.stopped && self.instructions < self.budget / 4 {
-                let writer =
-                    u64::from(vm.audio_time / 64) * 65536 + vm.registers[1].previous_sp as u64;
-                if writer > self.audio_target {
+                if vm.audio_written > self.audio_target {
                     break;
                 }
                 if remaining == 0 {
                     return None;
                 }
-                vm.step();
-                self.instructions += 1;
-                remaining -= 1;
+                let executed =
+                    vm.step_instructions(remaining.min(self.budget / 4 - self.instructions));
+                self.instructions += executed;
+                remaining -= executed;
             }
-            let writer = u64::from(vm.audio_time / 64) * 65536 + vm.registers[1].previous_sp as u64;
-            self.audio_complete = vm.audio_enabled && writer > self.audio_target;
+            self.audio_complete = vm.audio_enabled && vm.audio_written > self.audio_target;
             self.audio = Some(
                 (0..1024)
                     .map(|i| {
@@ -141,9 +139,9 @@ impl FrameRender {
             if remaining == 0 {
                 return None;
             }
-            vm.step();
-            self.instructions += 1;
-            remaining -= 1;
+            let executed = vm.step_instructions(remaining.min(self.budget - self.instructions));
+            self.instructions += executed;
+            remaining -= executed;
         }
         self.finished = true;
         let rgb = vm.rgb();
@@ -161,6 +159,7 @@ impl FrameRender {
 /// Persistent 32-bit, 16.16 fixed-point IBNIZ machine with cyclic stacks.
 pub struct Vm {
     program: Program,
+    has_stack_arithmetic_fusion: bool,
     memory: Vec<i32>,
     registers: [Registers; 2],
     context: Context,
@@ -171,7 +170,8 @@ pub struct Vm {
     visible_page: usize,
     frame: u32,
     video_time: u32,
-    audio_time: u32,
+    audio_position: i64,
+    audio_written: i64,
     audio_read: usize,
     audio_enabled: bool,
     input: u32,
@@ -183,6 +183,7 @@ pub struct Vm {
 impl Vm {
     pub fn new(program: Program) -> Self {
         let mut vm = Self {
+            has_stack_arithmetic_fusion: has_stack_arithmetic_fusion(&program),
             program,
             memory: vec![0; MEMORY_WORDS],
             registers: [Registers::new(0), Registers::new(1)],
@@ -194,7 +195,8 @@ impl Vm {
             visible_page: 1,
             frame: 0,
             video_time: 0,
-            audio_time: 0,
+            audio_position: 1,
+            audio_written: 1,
             audio_read: 1,
             audio_enabled: true,
             input: 0,
@@ -227,6 +229,7 @@ impl Vm {
 
     /// Live recompilation preserves memory, stack pointers, timers and input.
     pub fn replace_program(&mut self, program: Program) {
+        self.has_stack_arithmetic_fusion = has_stack_arithmetic_fusion(&program);
         self.program = program;
         self.ip %= self.program.code.len();
         self.data_pointer = if self.program.data.is_empty() {
@@ -311,15 +314,18 @@ impl Vm {
         self.input
     }
 
+    #[inline]
     pub fn top(&self) -> i32 {
         self.memory[self.stack_base() + self.reg().sp]
     }
 
+    #[inline]
     pub fn push(&mut self, value: i32) {
         self.move_sp(1);
         self.set_top(value);
     }
 
+    #[inline]
     fn pop(&mut self) -> i32 {
         let value = self.top();
         self.move_sp(-1);
@@ -360,6 +366,9 @@ impl Vm {
 
     fn move_sp(&mut self, delta: isize) {
         self.reg_mut().sp = self.reg().sp.wrapping_add_signed(delta) & self.stack_mask();
+        if self.context == Context::Audio {
+            self.audio_position = self.audio_position.wrapping_add(delta as i64);
+        }
     }
 
     fn set_top(&mut self, value: i32) {
@@ -373,6 +382,7 @@ impl Vm {
         self.memory[slot] = value as i32;
     }
 
+    #[inline]
     fn rtop(&self, depth: usize) -> u32 {
         self.memory[self.return_base() + (self.reg().rsp.wrapping_sub(depth) & 0x3fff)] as u32
     }
@@ -388,14 +398,8 @@ impl Vm {
         self.reg_mut().where_count = self.reg().where_count.wrapping_add(1);
         match self.context {
             Context::Audio => {
-                if p == 0 {
-                    self.audio_time = self.audio_time.wrapping_add(64);
-                }
                 self.move_sp(1);
-                let value = self
-                    .audio_time
-                    .wrapping_mul(65536)
-                    .wrapping_add((self.reg().sp as u32).wrapping_mul(64));
+                let value = (self.audio_position as u32).wrapping_mul(64);
                 self.set_top(value as i32);
             }
             Context::Video => {
@@ -435,6 +439,10 @@ impl Vm {
         }
         r.where_count = 0;
         r.previous_sp = r.sp;
+        if current == Context::Audio {
+            // Only completed media iterations commit samples; stack temporaries do not.
+            self.audio_written = self.audio_position;
+        }
         if current == preferred {
             self.ip = hint;
         } else {
@@ -466,52 +474,51 @@ impl Vm {
 
     /// Execute one instruction. All overflow and address wrapping is explicit.
     pub fn step(&mut self) {
+        self.step_instructions(1);
+    }
+
+    #[inline(always)]
+    fn step_instructions(&mut self, limit: usize) -> usize {
         if self.stopped {
-            return;
+            return 0;
         }
         let index = self.ip;
         let instruction = self.program.code[index];
-        self.ip = (self.ip + 1) % self.program.code.len();
+        self.ip += 1;
+        if self.ip == self.program.code.len() {
+            self.ip = 0;
+        }
         self.instructions_executed = self.instructions_executed.wrapping_add(1);
         let a = self.top();
         match instruction {
-            Instruction::Immediate(value) => self.push(value),
+            Instruction::Immediate(value) => {
+                if limit >= 2
+                    && let Instruction::Op(op) = self.program.code[self.ip]
+                    && matches!(
+                        op,
+                        b'+' | b'-' | b'*' | b'/' | b'%' | b'&' | b'|' | b'^' | b'r' | b'l' | b'a'
+                    )
+                {
+                    // Preserve the temporary stack write as well as instruction accounting.
+                    let temporary =
+                        self.stack_base() + (self.reg().sp.wrapping_add(1) & self.stack_mask());
+                    self.memory[temporary] = value;
+                    self.set_top(binary_value(op, a, value));
+                    self.ip += 1;
+                    if self.ip == self.program.code.len() {
+                        self.ip = 0;
+                    }
+                    self.instructions_executed = self.instructions_executed.wrapping_add(1);
+                    return 2;
+                }
+                self.push(value);
+            }
             Instruction::End => self.media_boundary(self.program.hints[index], true),
             Instruction::Op(op) => match op {
                 b'+' | b'-' | b'*' | b'/' | b'%' | b'&' | b'|' | b'^' | b'r' | b'l' | b'a' => {
                     self.pop();
                     let b = self.top();
-                    let value = match op {
-                        b'+' => b.wrapping_add(a),
-                        b'-' => b.wrapping_sub(a),
-                        b'*' => ((i64::from(b) * i64::from(a)) >> 16) as i32,
-                        b'/' => {
-                            if a == 0 {
-                                0
-                            } else {
-                                ((i64::from(b) << 16) / i64::from(a)) as i32
-                            }
-                        }
-                        b'%' => b.checked_rem(a).unwrap_or(0),
-                        b'&' => b & a,
-                        b'|' => b | a,
-                        b'^' => b ^ a,
-                        b'r' => (b as u32).rotate_right(((a >> 16) & 31) as u32) as i32,
-                        // Match the actual IBNIZ_SHL macro, including its signed-right branch.
-                        b'l' => {
-                            if a & (32 << 16) != 0 {
-                                b >> (((!a) >> 16) & 31)
-                            } else {
-                                b.wrapping_shl(((a >> 16) & 31) as u32)
-                            }
-                        }
-                        b'a' => {
-                            (f64::from(b).atan2(f64::from(a)) * (65536.0 / std::f64::consts::TAU))
-                                as i32
-                        }
-                        _ => unreachable!(),
-                    };
-                    self.set_top(value);
+                    self.set_top(binary_value(op, b, a));
                 }
                 b'q' => self.set_top(if a < 0 {
                     0
@@ -528,7 +535,34 @@ impl Vm {
                 b'<' => self.set_top(a.min(0)),
                 b'>' => self.set_top(a.max(0)),
                 b'=' => self.set_top(if a == 0 { 65536 } else { 0 }),
-                b'd' => self.push(a),
+                b'd' => {
+                    if self.has_stack_arithmetic_fusion
+                        && limit >= 4
+                        && let [
+                            Instruction::Immediate(value),
+                            Instruction::Op(b'&'),
+                            Instruction::Op(b'*'),
+                            ..,
+                        ] = &self.program.code[self.ip..]
+                    {
+                        let value = *value;
+                        let base = self.stack_base();
+                        let sp = self.reg().sp;
+                        let mask = self.stack_mask();
+                        let intermediate = a & value;
+                        // Both popped slots remain observable through memory instructions.
+                        self.memory[base + (sp.wrapping_add(1) & mask)] = intermediate;
+                        self.memory[base + (sp.wrapping_add(2) & mask)] = value;
+                        self.set_top(binary_value(b'*', a, intermediate));
+                        self.ip += 3;
+                        if self.ip == self.program.code.len() {
+                            self.ip = 0;
+                        }
+                        self.instructions_executed = self.instructions_executed.wrapping_add(3);
+                        return 4;
+                    }
+                    self.push(a);
+                }
                 b'p' => {
                     self.pop();
                 }
@@ -656,6 +690,7 @@ impl Vm {
                 _ => unreachable!("compiler only emits supported operations"),
             },
         }
+        1
     }
 
     /// Render one deterministic 1/60-second tick with a bounded instruction count.
@@ -673,7 +708,7 @@ impl Vm {
             budget: max_instructions,
             instructions: 0,
             audio_start: self.audio_read,
-            audio_target: self.frame.wrapping_add(1) as u64 * 1024,
+            audio_target: i64::from(self.frame.wrapping_add(1)) * 1024,
             audio: None,
             audio_complete: false,
             finished: false,
@@ -704,4 +739,49 @@ impl Vm {
 
 fn address(value: i32) -> usize {
     (value as u32).rotate_left(16) as usize & (MEMORY_WORDS - 1)
+}
+
+fn has_stack_arithmetic_fusion(program: &Program) -> bool {
+    program.code.windows(4).any(|code| {
+        matches!(
+            code,
+            [
+                Instruction::Op(b'd'),
+                Instruction::Immediate(_),
+                Instruction::Op(b'&'),
+                Instruction::Op(b'*'),
+            ]
+        )
+    })
+}
+
+#[inline(always)]
+fn binary_value(op: u8, b: i32, a: i32) -> i32 {
+    match op {
+        b'+' => b.wrapping_add(a),
+        b'-' => b.wrapping_sub(a),
+        b'*' => ((i64::from(b) * i64::from(a)) >> 16) as i32,
+        b'/' => {
+            if a == 0 {
+                0
+            } else {
+                ((i64::from(b) << 16) / i64::from(a)) as i32
+            }
+        }
+        b'%' => b.checked_rem(a).unwrap_or(0),
+        b'&' => b & a,
+        b'|' => b | a,
+        b'^' => b ^ a,
+        b'r' => (b as u32).rotate_right(((a >> 16) & 31) as u32) as i32,
+        // Match the actual IBNIZ_SHL macro, including its signed-right branch.
+        b'l' => {
+            if a & (32 << 16) != 0 {
+                b >> (((!a) >> 16) & 31)
+            } else {
+                b.wrapping_shl(((a >> 16) & 31) as u32)
+            }
+        }
+        b'a' => (f64::from(b).atan2(f64::from(a)) * (65536.0 / std::f64::consts::TAU)) as i32,
+        _ => unreachable!(),
+    }
 }

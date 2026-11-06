@@ -51,6 +51,84 @@ fn sliced_frames_match_uninterrupted_rendering_and_instruction_limits() {
 }
 
 #[test]
+fn fused_stack_arithmetic_matches_single_instruction_slices() {
+    for source in ["d3.01&*", "dFFFF.FFFF&* M d3.01&*"] {
+        for budget in [0, 1, 2, 3, 4, 5, 15, 16, 17, 256] {
+            let program = Program::compile(source).unwrap();
+            let mut reference = Vm::new(program.clone());
+            let mut fused = Vm::new(program);
+            for _ in 0..3 {
+                let mut job = reference.begin_frame(budget);
+                let expected = loop {
+                    if let Some(frame) = job.advance(&mut reference, 1) {
+                        break frame;
+                    }
+                };
+                let actual = fused.render_frame(budget);
+                assert_eq!(actual.rgb, expected.rgb, "{source}, budget {budget}");
+                assert_eq!(actual.audio, expected.audio, "{source}, budget {budget}");
+                assert_eq!(actual.instructions, expected.instructions);
+                assert_eq!(actual.video_complete, expected.video_complete);
+                assert_eq!(actual.audio_complete, expected.audio_complete);
+                assert_eq!(fused.memory(), reference.memory());
+                assert_eq!(
+                    format!("{:?}", fused.status()),
+                    format!("{:?}", reference.status())
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fused_stack_arithmetic_preserves_wrapped_slots_and_signed_values() {
+    for (source, context, mask) in [
+        ("d3.01&* T", Context::Video, 0x1ffff),
+        ("M dFFFF.FFFF&* T", Context::Audio, 0xffff),
+    ] {
+        for value in [i32::MIN, -1, 0, i32::MAX] {
+            let prepare = || {
+                let mut vm = Vm::new(Program::compile(source).unwrap());
+                if context == Context::Audio {
+                    vm.render_frame(4);
+                    vm.replace_program(
+                        Program::compile(source.strip_prefix("M ").unwrap()).unwrap(),
+                    );
+                }
+                assert_eq!(vm.status().context, context);
+                let sp = match context {
+                    Context::Video => vm.status().video_stack_pointer,
+                    Context::Audio => vm.status().audio_stack_pointer,
+                };
+                for _ in sp..mask {
+                    vm.push(0);
+                }
+                let address = vm.data_stack_entry(context, 0).address;
+                vm.memory_mut()[address] = value;
+                vm
+            };
+            let mut reference = prepare();
+            let mut fused = prepare();
+            let mut job = reference.begin_frame(16);
+            let expected = loop {
+                if let Some(frame) = job.advance(&mut reference, 1) {
+                    break frame;
+                }
+            };
+            let actual = fused.render_frame(16);
+            assert_eq!(actual.audio, expected.audio);
+            assert_eq!(actual.rgb, expected.rgb);
+            assert_eq!(actual.instructions, expected.instructions);
+            assert_eq!(fused.memory(), reference.memory(), "{source}, {value}");
+            assert_eq!(
+                format!("{:?}", fused.status()),
+                format!("{:?}", reference.status())
+            );
+        }
+    }
+}
+
+#[test]
 fn numbers_comments_and_data() {
     let p = Program::compile("ABCD.1234,1 2\n\\ comment without trailing newline").unwrap();
     assert_eq!(
@@ -471,6 +549,7 @@ fn reference_xor_pixels_and_audio_buffer_rollover() {
                 "tick {tick}, pixel {p}"
             );
         }
+
         for i in 2..1024 {
             let t = ((tick * 1024 + i + 1) * 64) as u32;
             let expected = ((i64::from(t as i32)
@@ -481,6 +560,27 @@ fn reference_xor_pixels_and_audio_buffer_rollover() {
                 (expected ^ 0x8000) as i16,
                 "tick {tick}, sample {i}"
             );
+        }
+    }
+}
+
+#[test]
+fn multi_sample_audio_iterations_complete_across_buffer_rollovers() {
+    for audio in ["d", "ddd", "dwd"] {
+        let source = format!("^xp M {audio}");
+        let mut vm = Vm::new(Program::compile(&source).unwrap());
+        for tick in 0..130 {
+            let frame = vm.render_frame(500_000);
+            assert!(frame.video_complete, "{source}, video tick {tick}");
+            assert!(frame.audio_complete, "{source}, audio tick {tick}");
+            if audio == "d" {
+                let next_time = ((tick + 1) * 1024 + 2) * 64;
+                assert_eq!(
+                    vm.data_stack_entry(Context::Audio, 0).value,
+                    next_time,
+                    "{source}, timestamp after tick {tick}",
+                );
+            }
         }
     }
 }

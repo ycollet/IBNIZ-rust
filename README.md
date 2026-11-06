@@ -245,8 +245,8 @@ The **Playback** menu changes settings live, without resetting the VM:
 |---------|--------|
 | Preview refresh: 15 / 30 / 60 fps | Limits display texture updates; defaults to 60 fps. VM execution and 60 fps recordings are unchanged. |
 | Instructions/tick | Total VM instruction limit, initially `--max-instructions`. Changes apply to the next tick; higher limits allow more complex expressions but can slow playback. |
-| Work slice: 1-64 ms | VM work per UI update, default 6 ms. Lower values favor editor responsiveness; higher values favor throughput. |
-| Minimum audio buffer: 20-1024 ms | Startup/recovery buffering, default 80 ms. Higher values tolerate jitter at the cost of playback latency. |
+| Work slice: 1-128 ms | VM work per UI update, default 6 ms. Lower values favor editor responsiveness; higher values favor throughput. |
+| Minimum audio buffer: 20-2048 ms | Startup/recovery buffering, default 80 ms. Higher values tolerate jitter at the cost of playback latency. |
 
 If you hear audio dropouts or see **Stream gaps** increasing, try increasing
 **Work slice** and/or **Minimum audio buffer** in the **Playback** menu.
@@ -265,7 +265,7 @@ between UI updates.
 
 Audio resampling happens outside the output-queue lock. Playback waits for real
 samples instead of padding the queue with silence. After starvation, the buffer
-target grows by 20 ms, up to 1024 ms, before resuming; short 5 ms fades soften
+target grows by 20 ms, up to 2048 ms, before resuming; short 5 ms fades soften
 the transition to and from silence. The status bar shows queued audio and the
 current target. Pause/reset clears queued audio and restores the selected
 minimum; changing the minimum sets the target immediately. The queue is capped
@@ -473,6 +473,42 @@ cargo test --bin ibniz ffmpeg_encodes_recorded_video_and_audio -- --ignored
 
 The core and headless build have no third-party dependencies. Desktop tests
 exercise the editor and rendering UI without opening a native window.
+
+### Playback benchmark
+
+```sh
+cargo run --release --locked --no-default-features --example playback_bench
+```
+
+This benchmarks 11 labeled expressions from `examples/summerlab-ibniz-latest.txt`
+and four short baselines from `examples/shortest_ibniz_programs.txt`, reading
+the expressions directly from those collections. It uses the first matching
+labeled summerlab entry where an expression appears more than once.
+Each case runs on a persistent VM for 60 warmup ticks followed by 300 measured
+ticks with the default 4,000,000-instruction budget. Timings include audio
+generation and RGB conversion, but exclude compilation, file I/O, desktop UI,
+audio resampling and device callbacks.
+
+CSV output reports median, p95 and worst tick times, ticks exceeding the
+16.7 ms playback deadline, incomplete audio/video ticks and instruction-budget
+hits. Audio misses exclude ticks where audio is disabled. Late ticks indicate
+CPU/scheduling pressure; budget hits and incomplete output can happen even
+when execution is fast. Audio generation is limited to one quarter of the
+tick's instruction budget, so audio misses need not coincide with total-budget
+hits. These are diagnostics, not actual audio-device xrun
+counts or pass/fail performance thresholds. Run on an otherwise idle machine
+and compare repeated runs with the same options.
+
+For longer runs or a specific expression:
+
+```sh
+cargo run --release --locked --no-default-features --example playback_bench -- \
+  --warmup 120 --frames 3600 --filter "angelic"
+```
+
+Use `--max-instructions N` to compare instruction budgets. Larger audio buffers
+can absorb temporary scheduling delays but cannot fix sustained rendering
+slower than 60 ticks per second.
 
 ## License
 

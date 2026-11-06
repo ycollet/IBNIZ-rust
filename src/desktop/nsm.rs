@@ -64,7 +64,7 @@ impl State {
         if !self.volume.is_finite()
             || !(0.0..=1.0).contains(&self.volume)
             || self.budget < 4
-            || !(1..=64).contains(&self.slice_ms)
+            || !(1..=super::MAX_WORK_SLICE_MS).contains(&self.slice_ms)
             || ![15, 30, 60].contains(&self.preview_fps)
             || !(20..=super::audio::MAX_BUFFER_MS).contains(&self.buffer_ms)
         {
@@ -647,14 +647,22 @@ pub(super) mod tests {
     #[test]
     fn playback_settings_accept_expanded_limits_and_reject_values_above_them() {
         let mut state = state();
-        state.slice_ms = 64;
-        state.buffer_ms = 1024;
+        state.slice_ms = super::super::MAX_WORK_SLICE_MS;
+        state.buffer_ms = super::super::audio::MAX_BUFFER_MS;
         assert!(state.validate().is_ok());
-        state.slice_ms = 65;
+        state.slice_ms += 1;
         assert!(state.validate().is_err());
-        state.slice_ms = 64;
-        state.buffer_ms = 1025;
+        state.slice_ms = super::super::MAX_WORK_SLICE_MS;
+        state.buffer_ms += 1;
         assert!(state.validate().is_err());
+        state.buffer_ms = 20;
+        state.slice_ms = 0;
+        assert!(state.validate().is_err());
+        state.slice_ms = 1;
+        state.buffer_ms = 19;
+        assert!(state.validate().is_err());
+        state.buffer_ms = 20;
+        assert!(state.validate().is_ok());
     }
 
     #[test]
