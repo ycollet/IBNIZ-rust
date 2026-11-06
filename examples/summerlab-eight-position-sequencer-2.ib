@@ -1,0 +1,14 @@
+\ Eight-position sequencer 2
+\ Source: summerlab-ibniz-latest.txt, lines 120-128
+\ https://github.com/ycollet/IBNIZ-rust/blob/23d77723d1d983bef64e6df803bcc831d10064d9/examples/summerlab-ibniz-latest.txt
+\ No explicit license is stated in the bundled collection.
+
+1{d+z3%zAiw*+**q}
+2{d+z3%zAiw*+i*}
+3{d+z4%z4iw*+**3q}
+4{d+z4%zDiqw*+**}
+5{d+z4%zDiw*+*w}
+6{d+z3%zAiw*+**9q}
+7{d+z3%z8iq3w*+*s+3}
+8{d+z2%zAiw*+**}
+2)4r7&1+V

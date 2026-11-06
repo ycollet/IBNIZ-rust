@@ -187,11 +187,12 @@ prompts.
 
 ### Bundled example browser
 
-Click **Examples** to browse all 38 bundled programs, grouped into **Fractals**,
+Click **Examples** to browse all 195 bundled programs, grouped into **Fractals**,
 **Textures**, **Music**, **Demos**, and **Other**. Search matches titles,
 filenames, descriptions, contributors and source collections, ignoring case.
 Select an example to see its description, named contributor (where provided),
-pinned source link, collection license and an optional read-only source preview.
+pinned source link, collection license (or an explicit unspecified-license notice)
+and an optional read-only source preview.
 Collection maintainers are not assumed to have authored individual programs.
 
 **Load example** replaces the editor contents, resets the VM and audio queue,

@@ -1,16 +1,18 @@
 # IBNIZ examples
 
-38 `.ib` files: the five original upstream files plus 33 additional unique
-programs from the language manual and two browser galleries. Identical
-programs shared between sources are included only once; distinct variants
-are kept. Program bodies are unchanged; new files add attribution comments.
+195 `.ib` files: the 38 previously bundled examples plus 157 complete,
+compiler-valid programs extracted from the shortest-program and Summerlab
+collections. Identical extracted programs reuse existing files; distinct
+variants are kept. Program bodies are unchanged except for removing the
+collection's leading comment markers; new files add attribution comments.
 
 **Warning:** some examples flash rapidly and produce loud noise. Start at
 low volume, or use `--no-audio`.
 
-In the desktop app, click **Examples** to search and filter all 38 embedded
+In the desktop app, click **Examples** to search and filter all 195 embedded
 programs by category. The browser includes descriptions, contributor credits,
-pinned source links and collection license notices. Loading an example resets
+pinned source links and collection license notices (including an explicit
+unspecified-license notice where the bundled source provides no license). Loading an example resets
 and pauses playback, asks before discarding edits, and suggests a local
 `<example>-copy.ib` save path. The browser works offline without this directory.
 
@@ -93,7 +95,30 @@ are retained where provided by the sources.
 [jibniz]: https://github.com/flupe/jibniz/blob/009c312c06938cf30d3b1b50572c51989f0f80ee/index.html
 [ibnjs]: https://github.com/uones/ibnjs/blob/03314c9bdb5379527dd0899f168c5e32bd339d41/index.html
 
-## Extra files
+## Extracted source collections
 
-The file summerlab-ibniz-latest.txt came from this [website](https://ressources.labomedia.org/ibniz).
-The file shortest_ibniz_programs.txt cam from this [website](https://web.archive.org/web/20190915062423/http://low.fi/~viznut/shortest_ibniz_programs.txt)
+- [shortest_ibniz_programs.txt](shortest_ibniz_programs.txt), from this
+  [archived list](https://web.archive.org/web/20190915062423/http://low.fi/~viznut/shortest_ibniz_programs.txt):
+  40 new programs. Listed alternatives are separate programs; the empty
+  gradient/sawtooth program is preserved too.
+- [summerlab-ibniz-latest.txt](summerlab-ibniz-latest.txt), from
+  [Labomedia](https://ressources.labomedia.org/ibniz): 117 new programs,
+  including the complete multiline sequencers and `trop colle`.
+
+[collection-index.tsv](collection-index.tsv) maps every candidate occurrence
+to its `.ib` file or records why it was excluded. `included` means a new
+file, `reused` means a previously bundled program, and `duplicate` points
+to an earlier extraction. Deduplication compares compiled instructions and
+binary data, not names or comments. The bitmap zoomer reuses the original
+`bitmapzoomer.ib`, retaining its complete binary data segment.
+
+49 Summerlab candidates are excluded: 36 use unsupported characters and
+13 are incomplete sequencers, empty templates, definitions without callers,
+or calls without their definitions. Unsupported lowercase instructions are
+not silently uppercased or rewritten. Compiling successfully does not imply
+that a program can complete video within the default instruction budget.
+
+Each new file records the collection, source lines, pinned repository link,
+and individual credit where supplied. Neither bundled text declares an
+explicit license; no license is inferred from this project's license or
+from unrelated galleries.

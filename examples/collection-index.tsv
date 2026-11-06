@@ -1,0 +1,303 @@
+collection	lines	filename	title	status	reason
+shortest_ibniz_programs.txt	9	shortest-gradient-sawtooth.ib	Gradient & sawtooth	included	
+shortest_ibniz_programs.txt	12	shortest-flasher-slowing-down.ib	flasher slowing down	included	
+shortest_ibniz_programs.txt	13	shortest-glitchy-halfscreen.ib	glitchy halfscreen	included	
+shortest_ibniz_programs.txt	14	shortest-colorfade.ib	colorfade	included	
+shortest_ibniz_programs.txt	17	tv-noise.ib	tv noise	reused	
+shortest_ibniz_programs.txt	18	shortest-trippy-whining-rotator.ib	trippy & whining rotator	included	
+shortest_ibniz_programs.txt	19	shortest-textured-headache.ib	*-textured headache	included	
+shortest_ibniz_programs.txt	20	mul-texture-zoomer.ib	zooming *-texture	reused	
+shortest_ibniz_programs.txt	21	shortest-stopping-near-negative-star.ib	stopping near negative star	included	
+shortest_ibniz_programs.txt	22	shortest-mcp-variant-1.ib	mcp (variant 1)	included	
+shortest_ibniz_programs.txt	22	shortest-mcp-variant-2.ib	mcp (variant 2)	included	
+shortest_ibniz_programs.txt	22	shortest-mcp-variant-1.ib	mcp (variant 1)	duplicate	
+shortest_ibniz_programs.txt	22	shortest-mcp-variant-3.ib	mcp (variant 3)	included	
+shortest_ibniz_programs.txt	23	shortest-gradual-art.ib	gradual art	included	
+shortest_ibniz_programs.txt	24	shortest-spotlights-among-textures-variant-1.ib	spotlights among *-textures (variant 1)	included	
+shortest_ibniz_programs.txt	24	shortest-spotlights-among-textures-variant-2.ib	spotlights among *-textures (variant 2)	included	
+shortest_ibniz_programs.txt	24	shortest-spotlights-among-textures-variant-3.ib	spotlights among *-textures (variant 3)	included	
+shortest_ibniz_programs.txt	25	flasher.ib	flasher	reused	
+shortest_ibniz_programs.txt	26	shortest-plasmas.ib	plasmas	included	
+shortest_ibniz_programs.txt	27	shortest-moving-glitchsquares.ib	moving glitchsquares	included	
+shortest_ibniz_programs.txt	28	jupiter-storm.ib	jupiter storm (variant 1)	reused	
+shortest_ibniz_programs.txt	28	jupiter-storm-bw.ib	jupiter storm (variant 2)	reused	
+shortest_ibniz_programs.txt	28	shortest-jupiter-storm-variant-3.ib	jupiter storm (variant 3)	included	
+shortest_ibniz_programs.txt	28	shortest-jupiter-storm-variant-4.ib	jupiter storm (variant 4)	included	
+shortest_ibniz_programs.txt	28	shortest-jupiter-storm-variant-5.ib	jupiter storm (variant 5)	included	
+shortest_ibniz_programs.txt	28	shortest-jupiter-storm-variant-6.ib	jupiter storm (variant 6)	included	
+shortest_ibniz_programs.txt	28	shortest-jupiter-storm-variant-7.ib	jupiter storm (variant 7)	included	
+shortest_ibniz_programs.txt	28	shortest-jupiter-storm-variant-8.ib	jupiter storm (variant 8)	included	
+shortest_ibniz_programs.txt	29	shortest-blinking-stripes-variant-1.ib	blinking stripes (variant 1)	included	
+shortest_ibniz_programs.txt	29	shortest-blinking-stripes-variant-2.ib	blinking stripes (variant 2)	included	
+shortest_ibniz_programs.txt	29	shortest-blinking-stripes-variant-3.ib	blinking stripes (variant 3)	included	
+shortest_ibniz_programs.txt	29	shortest-blinking-stripes-variant-4.ib	blinking stripes (variant 4)	included	
+shortest_ibniz_programs.txt	30	shortest-stopping-in-hyperspace-variant-1.ib	stopping in hyperspace (variant 1)	included	
+shortest_ibniz_programs.txt	30	shortest-stopping-in-hyperspace-variant-2.ib	stopping in hyperspace (variant 2)	included	
+shortest_ibniz_programs.txt	30	perspective-mapper.ib	stopping in hyperspace (variant 3)	reused	
+shortest_ibniz_programs.txt	31	sierpinski.ib	stuff with sierpinski triangles (variant 1)	reused	
+shortest_ibniz_programs.txt	31	shortest-stuff-with-sierpinski-triangles-variant-2.ib	stuff with sierpinski triangles (variant 2)	included	
+shortest_ibniz_programs.txt	31	shortest-stuff-with-sierpinski-triangles-variant-3.ib	stuff with sierpinski triangles (variant 3)	included	
+shortest_ibniz_programs.txt	31	shortest-stuff-with-sierpinski-triangles-variant-4.ib	stuff with sierpinski triangles (variant 4)	included	
+shortest_ibniz_programs.txt	31	shortest-stuff-with-sierpinski-triangles-variant-5.ib	stuff with sierpinski triangles (variant 5)	included	
+shortest_ibniz_programs.txt	31	shortest-stuff-with-sierpinski-triangles-variant-6.ib	stuff with sierpinski triangles (variant 6)	included	
+shortest_ibniz_programs.txt	31	shortest-stuff-with-sierpinski-triangles-variant-7.ib	stuff with sierpinski triangles (variant 7)	included	
+shortest_ibniz_programs.txt	32	shortest-munching-epilepsy-variant-1.ib	munching epilepsy (variant 1)	included	
+shortest_ibniz_programs.txt	32	shortest-munching-epilepsy-variant-2.ib	munching epilepsy (variant 2)	included	
+shortest_ibniz_programs.txt	32	shortest-munching-epilepsy-variant-3.ib	munching epilepsy (variant 3)	included	
+shortest_ibniz_programs.txt	33	polyrhythmic-flasher.ib	polyrhythmic flasher slowing down	reused	
+shortest_ibniz_programs.txt	34	shortest-noisy-bar-scrolling-down-slowly.ib	noisy bar scrolling down slowly	included	
+shortest_ibniz_programs.txt	35	shortest-random-squeaks.ib	random squeaks	included	
+shortest_ibniz_programs.txt	36	shortest-noisy-bar-in-a-textured-night.ib	noisy bar in a *-textured night	included	
+shortest_ibniz_programs.txt	37	sliding-squarewave.ib	squarewave sliding down	reused	
+summerlab-ibniz-latest.txt	12	summerlab-n-b-miroir.ib	n&b miroir	included	
+summerlab-ibniz-latest.txt	13	summerlab-binary-jet.ib	binary jet	included	
+summerlab-ibniz-latest.txt	14	summerlab-gluon.ib	gluon	included	
+summerlab-ibniz-latest.txt	15	summerlab-new-new-sleep-2.ib	new new sleep 2	included	
+summerlab-ibniz-latest.txt	16	summerlab-muon.ib	muon	included	
+summerlab-ibniz-latest.txt	17	summerlab-trumpet-rmx.ib	trumpet rmx	included	
+summerlab-ibniz-latest.txt	18	summerlab-angelic-hysteron-isogamete.ib	angelic hysteron isogamete 5'15	included	
+summerlab-ibniz-latest.txt	19	summerlab-new-new-sleep.ib	new new sleep	included	
+summerlab-ibniz-latest.txt	20	summerlab-smmrlb2017.ib	smmrlb2017	included	
+summerlab-ibniz-latest.txt	25	summerlab-cinderella-berkelium-canoe.ib	cinderella berkelium canoe 2'29 (emoc)	included	
+summerlab-ibniz-latest.txt	27	summerlab-cheeky-anthracite-bacteria.ib	cheeky anthracite bacteria 1'29  (emoc)	included	
+summerlab-ibniz-latest.txt	29	summerlab-snotty-ice-cream-electrode.ib	snotty ice-cream electrode (emoc)	included	
+summerlab-ibniz-latest.txt	31	summerlab-sleep.ib	sleep (emoc)	included	
+summerlab-ibniz-latest.txt	33		amateurish disintegration 1'19 (emoc)	skipped	unknown IBNIZ character 'e' at byte 27
+summerlab-ibniz-latest.txt	35	summerlab-angelic-hysteron-isogamete.ib	angelic hysteron isogamete 5'15  (emoc)	duplicate	
+summerlab-ibniz-latest.txt	37	summerlab-lettuce-fumigation-inhaler.ib	lettuce fumigation inhaler (emoc)	included	
+summerlab-ibniz-latest.txt	39	summerlab-glucophage-nut-margarine.ib	glucophage nut margarine 1'29 (emoc)	included	
+summerlab-ibniz-latest.txt	41	summerlab-trumpet-rmx.ib	Trumpet remix (emoc)	duplicate	
+summerlab-ibniz-latest.txt	43	summerlab-reset.ib	reset (emoc)	included	
+summerlab-ibniz-latest.txt	45	summerlab-summerlab-2012.ib	summerlab 2012 (emoc)	included	
+summerlab-ibniz-latest.txt	47	summerlab-nutcracker-drag-race.ib	nutcracker drag race 3'33 (emoc)	included	
+summerlab-ibniz-latest.txt	49	summerlab-elongate-generosity-potion.ib	elongate generosity potion 4:34 (emoc)	included	
+summerlab-ibniz-latest.txt	51	summerlab-average-butane-cicada.ib	average butane cicada 0'59  (emoc)	included	
+summerlab-ibniz-latest.txt	53	summerlab-ostrich-junkie-invader.ib	ostrich junkie invader (emoc)	included	
+summerlab-ibniz-latest.txt	55	summerlab-aphasia-corrodible-bruise.ib	aphasia corrodible bruise 0'39  (emoc)	included	
+summerlab-ibniz-latest.txt	57	summerlab-chubby-chloroform-ornithology.ib	chubby chloroform ornithology  (emoc)	included	
+summerlab-ibniz-latest.txt	59	summerlab-premium-spinal-tofu.ib	premium spinal tofu 7'47  (emoc)	included	
+summerlab-ibniz-latest.txt	61	summerlab-black-magic-sunbathing.ib	black magic sunbathing    (emoc)	included	
+summerlab-ibniz-latest.txt	63	summerlab-chimpanzee-lagoon-bingo.ib	chimpanzee lagoon bingo (emoc)	included	
+summerlab-ibniz-latest.txt	66		drone aigu (diane)	skipped	unknown IBNIZ character 't' at byte 6
+summerlab-ibniz-latest.txt	68	summerlab-beat-simple.ib	beat simple (diane)	included	
+summerlab-ibniz-latest.txt	70	summerlab-note-simple.ib	note simple (diane)	included	
+summerlab-ibniz-latest.txt	72		souris ecrasee (diane)	skipped	unknown IBNIZ character 't' at byte 1
+summerlab-ibniz-latest.txt	74		croushtcroc (diane)	skipped	unknown IBNIZ character 'c' at byte 1
+summerlab-ibniz-latest.txt	76	summerlab-tv-drone.ib	tv drone (diane)	included	
+summerlab-ibniz-latest.txt	78	summerlab-melo.ib	melo? (diane)	included	
+summerlab-ibniz-latest.txt	80	summerlab-drone2beat.ib	drone2beat	included	
+summerlab-ibniz-latest.txt	84-92		Summerlab line 84-92	skipped	Incomplete sequencer: the third subroutine has no numbered address.
+summerlab-ibniz-latest.txt	94	summerlab-summerlab-line-94.ib	Summerlab line 94	included	
+summerlab-ibniz-latest.txt	96		Summerlab line 96	skipped	unknown IBNIZ character 'u' at byte 14
+summerlab-ibniz-latest.txt	98	summerlab-summerlab-line-98.ib	Summerlab line 98	included	
+summerlab-ibniz-latest.txt	100	summerlab-summerlab-line-100.ib	Summerlab line 100	included	
+summerlab-ibniz-latest.txt	102	summerlab-summerlab-line-102.ib	Summerlab line 102	included	
+summerlab-ibniz-latest.txt	104	summerlab-summerlab-line-104.ib	Summerlab line 104	included	
+summerlab-ibniz-latest.txt	106	summerlab-summerlab-line-106.ib	Summerlab line 106	included	
+summerlab-ibniz-latest.txt	108-116	summerlab-eight-position-sequencer-1.ib	Eight-position sequencer 1	included	
+summerlab-ibniz-latest.txt	120-128	summerlab-eight-position-sequencer-2.ib	Eight-position sequencer 2	included	
+summerlab-ibniz-latest.txt	130	summerlab-summerlab-line-130.ib	Summerlab line 130	included	
+summerlab-ibniz-latest.txt	132	summerlab-summerlab-line-132.ib	Summerlab line 132	included	
+summerlab-ibniz-latest.txt	134	summerlab-summerlab-line-134.ib	Summerlab line 134	included	
+summerlab-ibniz-latest.txt	137-138	summerlab-trop-colle.ib	trop colle	included	
+summerlab-ibniz-latest.txt	141		beater drone	skipped	unknown IBNIZ character 'u' at byte 11
+summerlab-ibniz-latest.txt	143	summerlab-summerlab-line-143.ib	Summerlab line 143	included	
+summerlab-ibniz-latest.txt	146		clochette	skipped	unknown IBNIZ character 'u' at byte 10
+summerlab-ibniz-latest.txt	149	summerlab-drone.ib	drone	included	
+summerlab-ibniz-latest.txt	151	summerlab-summerlab-line-151.ib	Summerlab line 151	included	
+summerlab-ibniz-latest.txt	153		Summerlab line 153	skipped	unknown IBNIZ character 'u' at byte 10
+summerlab-ibniz-latest.txt	156	summerlab-carre-carre.ib	carre-carre	included	
+summerlab-ibniz-latest.txt	158	summerlab-summerlab-line-158.ib	Summerlab line 158	included	
+summerlab-ibniz-latest.txt	160		Summerlab line 160	skipped	unknown IBNIZ character 'u' at byte 14
+summerlab-ibniz-latest.txt	162	summerlab-summerlab-line-162.ib	Summerlab line 162	included	
+summerlab-ibniz-latest.txt	169		Summerlab line 169	skipped	Sequencer template with empty subroutine bodies, not a finished example.
+summerlab-ibniz-latest.txt	176	summerlab-summerlab-line-176.ib	Summerlab line 176	included	
+summerlab-ibniz-latest.txt	179	summerlab-summerlab-line-179.ib	Summerlab line 179	included	
+summerlab-ibniz-latest.txt	193	shortest-gradient-sawtooth.ib	empty program	duplicate	
+summerlab-ibniz-latest.txt	196	shortest-flasher-slowing-down.ib	flasher slowing down (q)	duplicate	
+summerlab-ibniz-latest.txt	197	shortest-glitchy-halfscreen.ib	glitchy halfscreen (()	duplicate	
+summerlab-ibniz-latest.txt	198	shortest-colorfade.ib	colorfade (!)	duplicate	
+summerlab-ibniz-latest.txt	201	tv-noise.ib	tv noise (*d)	reused	
+summerlab-ibniz-latest.txt	202	shortest-trippy-whining-rotator.ib	trippy & whining rotator (d*)	duplicate	
+summerlab-ibniz-latest.txt	203	shortest-textured-headache.ib	*-textured headache (-d)	duplicate	
+summerlab-ibniz-latest.txt	204	mul-texture-zoomer.ib	zooming *-texture (**)	reused	
+summerlab-ibniz-latest.txt	205	shortest-stopping-near-negative-star.ib	stopping near negative star (*/)	duplicate	
+summerlab-ibniz-latest.txt	206	shortest-mcp-variant-3.ib	mcp (%%)	duplicate	
+summerlab-ibniz-latest.txt	206	shortest-mcp-variant-1.ib	mcp (%*)	duplicate	
+summerlab-ibniz-latest.txt	206	shortest-mcp-variant-1.ib	mcp (%*)	duplicate	
+summerlab-ibniz-latest.txt	206	shortest-mcp-variant-2.ib	mcp (%/)	duplicate	
+summerlab-ibniz-latest.txt	207	shortest-gradual-art.ib	gradual art (%a)	duplicate	
+summerlab-ibniz-latest.txt	208	shortest-spotlights-among-textures-variant-3.ib	spotlights among *-textures (a%)	duplicate	
+summerlab-ibniz-latest.txt	208	shortest-spotlights-among-textures-variant-1.ib	spotlights among *-textures (a*)	duplicate	
+summerlab-ibniz-latest.txt	208	shortest-spotlights-among-textures-variant-2.ib	spotlights among *-textures (a/)	duplicate	
+summerlab-ibniz-latest.txt	209	flasher.ib	flasher (9/)	reused	
+summerlab-ibniz-latest.txt	210	shortest-plasmas.ib	plasmas (Al)	duplicate	
+summerlab-ibniz-latest.txt	211	shortest-moving-glitchsquares.ib	moving glitchsquares ()()	duplicate	
+summerlab-ibniz-latest.txt	212	jupiter-storm-bw.ib	jupiter storm (+%)	reused	
+summerlab-ibniz-latest.txt	212	jupiter-storm.ib	jupiter storm (+/)	reused	
+summerlab-ibniz-latest.txt	212	shortest-jupiter-storm-variant-4.ib	jupiter storm (-%)	duplicate	
+summerlab-ibniz-latest.txt	212	shortest-jupiter-storm-variant-3.ib	jupiter storm (-/)	duplicate	
+summerlab-ibniz-latest.txt	212	shortest-jupiter-storm-variant-8.ib	jupiter storm (l%)	duplicate	
+summerlab-ibniz-latest.txt	212	shortest-jupiter-storm-variant-7.ib	jupiter storm (l/)	duplicate	
+summerlab-ibniz-latest.txt	212	shortest-jupiter-storm-variant-6.ib	jupiter storm (r%)	duplicate	
+summerlab-ibniz-latest.txt	212	shortest-jupiter-storm-variant-5.ib	jupiter storm (r/)	duplicate	
+summerlab-ibniz-latest.txt	213	shortest-blinking-stripes-variant-2.ib	blinking stripes (+l)	duplicate	
+summerlab-ibniz-latest.txt	213	shortest-blinking-stripes-variant-1.ib	blinking stripes (+r)	duplicate	
+summerlab-ibniz-latest.txt	213	shortest-blinking-stripes-variant-4.ib	blinking stripes (-l)	duplicate	
+summerlab-ibniz-latest.txt	213	shortest-blinking-stripes-variant-3.ib	blinking stripes (-r)	duplicate	
+summerlab-ibniz-latest.txt	214	perspective-mapper.ib	stopping in hyperspace (/%)	reused	
+summerlab-ibniz-latest.txt	214	shortest-stopping-in-hyperspace-variant-1.ib	stopping in hyperspace (/*)	duplicate	
+summerlab-ibniz-latest.txt	214	shortest-stopping-in-hyperspace-variant-2.ib	stopping in hyperspace (//)	duplicate	
+summerlab-ibniz-latest.txt	215	shortest-stuff-with-sierpinski-triangles-variant-2.ib	stuff with sierpinski triangles (&&)	duplicate	
+summerlab-ibniz-latest.txt	215	sierpinski.ib	stuff with sierpinski triangles (&*)	reused	
+summerlab-ibniz-latest.txt	215	shortest-stuff-with-sierpinski-triangles-variant-6.ib	stuff with sierpinski triangles (&-)	duplicate	
+summerlab-ibniz-latest.txt	215	shortest-stuff-with-sierpinski-triangles-variant-5.ib	stuff with sierpinski triangles (|%)	duplicate	
+summerlab-ibniz-latest.txt	215	shortest-stuff-with-sierpinski-triangles-variant-3.ib	stuff with sierpinski triangles (|*)	duplicate	
+summerlab-ibniz-latest.txt	215	shortest-stuff-with-sierpinski-triangles-variant-4.ib	stuff with sierpinski triangles (|/)	duplicate	
+summerlab-ibniz-latest.txt	215	shortest-stuff-with-sierpinski-triangles-variant-7.ib	stuff with sierpinski triangles (|a)	duplicate	
+summerlab-ibniz-latest.txt	216	shortest-munching-epilepsy-variant-3.ib	munching epilepsy (^%)	duplicate	
+summerlab-ibniz-latest.txt	216	shortest-munching-epilepsy-variant-1.ib	munching epilepsy (^*)	duplicate	
+summerlab-ibniz-latest.txt	216	shortest-munching-epilepsy-variant-2.ib	munching epilepsy (^/)	duplicate	
+summerlab-ibniz-latest.txt	217	polyrhythmic-flasher.ib	polyrhythmic flasher slowing down (qs)	reused	
+summerlab-ibniz-latest.txt	218	shortest-noisy-bar-scrolling-down-slowly.ib	noisy bar scrolling down slowly (q))	duplicate	
+summerlab-ibniz-latest.txt	219	shortest-random-squeaks.ib	random squeaks (q@)	duplicate	
+summerlab-ibniz-latest.txt	220	shortest-noisy-bar-in-a-textured-night.ib	noisy bar in a *-textured night (s))	duplicate	
+summerlab-ibniz-latest.txt	221	sliding-squarewave.ib	squarewave sliding down ()~)	reused	
+summerlab-ibniz-latest.txt	226	summerlab-rose-garden.ib	Rose Garden	included	
+summerlab-ibniz-latest.txt	228	summerlab-color-pattern.ib	Color Pattern	included	
+summerlab-ibniz-latest.txt	229	summerlab-trumpet-sound.ib	Trumpet sound	included	
+summerlab-ibniz-latest.txt	231	summerlab-mono-tone-patterns.ib	Mono tone Patterns	included	
+summerlab-ibniz-latest.txt	232	summerlab-shadow-of-mandelbrot.ib	Shadow of Mandelbrot?	included	
+summerlab-ibniz-latest.txt	234		Painting by Munching Squares	skipped	unknown IBNIZ character 't' at byte 2
+summerlab-ibniz-latest.txt	236	summerlab-gray-patterns.ib	Gray Patterns	included	
+summerlab-ibniz-latest.txt	237	summerlab-numbers-arithmetic-variations.ib	NUMBERS/ARITHMETIC variations	included	
+summerlab-ibniz-latest.txt	238	summerlab-gray-patterns-a-melody-changes-automatically.ib	Gray Patterns - A melody changes automatically	included	
+summerlab-ibniz-latest.txt	239	summerlab-bar-graph-a-melody-changes-automatically.ib	Bar graph - A melody changes automatically	included	
+summerlab-ibniz-latest.txt	242	summerlab-summerlab-line-242.ib	Summerlab line 242	included	
+summerlab-ibniz-latest.txt	243	summerlab-summerlab-line-243.ib	Summerlab line 243	included	
+summerlab-ibniz-latest.txt	244	summerlab-summerlab-line-244.ib	Summerlab line 244	included	
+summerlab-ibniz-latest.txt	245	summerlab-summerlab-line-245.ib	Summerlab line 245	included	
+summerlab-ibniz-latest.txt	246	summerlab-summerlab-line-246.ib	Summerlab line 246	included	
+summerlab-ibniz-latest.txt	247	summerlab-summerlab-line-247.ib	Summerlab line 247	included	
+summerlab-ibniz-latest.txt	248	summerlab-summerlab-line-248.ib	Summerlab line 248	included	
+summerlab-ibniz-latest.txt	251	summerlab-radiation.ib	Radiation	included	
+summerlab-ibniz-latest.txt	252	summerlab-reverse-rotations.ib	Reverse rotations	included	
+summerlab-ibniz-latest.txt	253	summerlab-four-rotations.ib	Four rotations	included	
+summerlab-ibniz-latest.txt	254	summerlab-summerlab-line-254.ib	Summerlab line 254	included	
+summerlab-ibniz-latest.txt	255	summerlab-summerlab-line-255.ib	Summerlab line 255	included	
+summerlab-ibniz-latest.txt	258	summerlab-xor-texture.ib	Xor texture	included	
+summerlab-ibniz-latest.txt	259	summerlab-xor-texture-plus-sierpinski-triangle.ib	Xor texture plus Sierpinski triangle	included	
+summerlab-ibniz-latest.txt	260	summerlab-xor-texture-color-change.ib	Xor texture color change	included	
+summerlab-ibniz-latest.txt	261	summerlab-pastelcolor-fractal.ib	PastelColor Fractal	included	
+summerlab-ibniz-latest.txt	262	summerlab-b-w-fractal.ib	B&W Fractal	included	
+summerlab-ibniz-latest.txt	263	summerlab-flowercolor-fractal.ib	FlowerColor Fractal	included	
+summerlab-ibniz-latest.txt	264	summerlab-the-fractal-kingdom-rise-and-downfall.ib	The Fractal Kingdom - Rise and Downfall	included	
+summerlab-ibniz-latest.txt	266	summerlab-fractal-flower-garden-another-fractal-variations-slow-speed.ib	Fractal Flower Garden, another Fractal variations (slow speed)	included	
+summerlab-ibniz-latest.txt	268	summerlab-striped-pattern-in-ms-dos-and-tower-of-chaos-in-javascript.ib	Striped pattern in MS-DOS and Tower of Chaos in Javascript	included	
+summerlab-ibniz-latest.txt	272	shortest-spotlights-among-textures-variant-2.ib	Summerlab line 272	duplicate	
+summerlab-ibniz-latest.txt	273	shortest-spotlights-among-textures-variant-1.ib	Summerlab line 273	duplicate	
+summerlab-ibniz-latest.txt	274	summerlab-summerlab-line-274.ib	Summerlab line 274	included	
+summerlab-ibniz-latest.txt	275	summerlab-summerlab-line-275.ib	Summerlab line 275	included	
+summerlab-ibniz-latest.txt	276	summerlab-summerlab-line-276.ib	Summerlab line 276	included	
+summerlab-ibniz-latest.txt	277		Summerlab line 277	skipped	unknown IBNIZ character 't' at byte 14
+summerlab-ibniz-latest.txt	278		Summerlab line 278	skipped	unknown IBNIZ character 't' at byte 14
+summerlab-ibniz-latest.txt	279	summerlab-summerlab-line-279.ib	Summerlab line 279	included	
+summerlab-ibniz-latest.txt	280	summerlab-summerlab-line-280.ib	Summerlab line 280	included	
+summerlab-ibniz-latest.txt	281	summerlab-summerlab-line-281.ib	Summerlab line 281	included	
+summerlab-ibniz-latest.txt	282		Summerlab line 282	skipped	unknown IBNIZ character 'b' at byte 0
+summerlab-ibniz-latest.txt	283	summerlab-summerlab-line-283.ib	Summerlab line 283	included	
+summerlab-ibniz-latest.txt	284	summerlab-summerlab-line-284.ib	Summerlab line 284	included	
+summerlab-ibniz-latest.txt	285	summerlab-summerlab-line-285.ib	Summerlab line 285	included	
+summerlab-ibniz-latest.txt	286	summerlab-summerlab-line-286.ib	Summerlab line 286	included	
+summerlab-ibniz-latest.txt	287		Summerlab line 287	skipped	unknown IBNIZ character '#' at byte 4
+summerlab-ibniz-latest.txt	288	summerlab-summerlab-line-288.ib	Summerlab line 288	included	
+summerlab-ibniz-latest.txt	289	summerlab-summerlab-line-289.ib	Summerlab line 289	included	
+summerlab-ibniz-latest.txt	290	summerlab-summerlab-line-290.ib	Summerlab line 290	included	
+summerlab-ibniz-latest.txt	291	summerlab-summerlab-line-291.ib	Summerlab line 291	included	
+summerlab-ibniz-latest.txt	292	summerlab-summerlab-line-292.ib	Summerlab line 292	included	
+summerlab-ibniz-latest.txt	293	summerlab-summerlab-line-293.ib	Summerlab line 293	included	
+summerlab-ibniz-latest.txt	294		Summerlab line 294	skipped	unknown IBNIZ character 'f' at byte 5
+summerlab-ibniz-latest.txt	295	summerlab-summerlab-line-295.ib	Summerlab line 295	included	
+summerlab-ibniz-latest.txt	296		Summerlab line 296	skipped	unknown IBNIZ character 't' at byte 0
+summerlab-ibniz-latest.txt	297	summerlab-summerlab-line-297.ib	Summerlab line 297	included	
+summerlab-ibniz-latest.txt	298	summerlab-summerlab-line-298.ib	Summerlab line 298	included	
+summerlab-ibniz-latest.txt	299	summerlab-summerlab-line-299.ib	Summerlab line 299	included	
+summerlab-ibniz-latest.txt	300	summerlab-summerlab-line-300.ib	Summerlab line 300	included	
+summerlab-ibniz-latest.txt	301	summerlab-summerlab-line-301.ib	Summerlab line 301	included	
+summerlab-ibniz-latest.txt	308	tv-noise.ib	TV noise (without sound)	reused	
+summerlab-ibniz-latest.txt	309	mul-texture-zoomer.ib	Mul-texture zoomer	reused	
+summerlab-ibniz-latest.txt	310	flasher.ib	Flasher	reused	
+summerlab-ibniz-latest.txt	311	jupiter-storm.ib	Jupiter storm	reused	
+summerlab-ibniz-latest.txt	312	jupiter-storm-bw.ib	Jupiter storm in B&W	reused	
+summerlab-ibniz-latest.txt	313	perspective-mapper.ib	Perspective mapper	reused	
+summerlab-ibniz-latest.txt	314	sierpinski.ib	Sierpinski epilepsy	reused	
+summerlab-ibniz-latest.txt	315	polyrhythmic-flasher.ib	Polyrhythmic flasher slowing down	reused	
+summerlab-ibniz-latest.txt	316	sliding-squarewave.ib	Sliding-down squarewave	reused	
+summerlab-ibniz-latest.txt	319	42-melody.ib	42 melody	reused	
+summerlab-ibniz-latest.txt	322	plasma.ib	Plasma	reused	
+summerlab-ibniz-latest.txt	325	munching-squares.ib	Munching squares with a Sierpinski harmony	reused	
+summerlab-ibniz-latest.txt	328	xor-texture-zoomer.ib	Xor texture zoomer	reused	
+summerlab-ibniz-latest.txt	331	music-from-the-video.ib	Music from the video	reused	
+summerlab-ibniz-latest.txt	334	opening-gate.ib	Opening gate	reused	
+summerlab-ibniz-latest.txt	337	spinny.ib	Spinny	reused	
+summerlab-ibniz-latest.txt	340	munching-zoomer.ib	Munching squares zoomer	reused	
+summerlab-ibniz-latest.txt	343	texture-tunnel.ib	Texture tunnel	reused	
+summerlab-ibniz-latest.txt	346	rotozoomer.ib	Rotozoomer	reused	
+summerlab-ibniz-latest.txt	349	mandelbrot.ib	Mandelbrot zoomer	reused	
+summerlab-ibniz-latest.txt	352	julia.ib	Julia morpher	reused	
+summerlab-ibniz-latest.txt	355	ibnizdemo.ib	122-character demo	reused	
+summerlab-ibniz-latest.txt	358-366	bitmapzoomer.ib	Bitmap zoomer	reused	
+summerlab-ibniz-latest.txt	373	summerlab-summerlab-line-373.ib	Summerlab line 373	included	
+summerlab-ibniz-latest.txt	374	summerlab-summerlab-line-374.ib	Summerlab line 374	included	
+summerlab-ibniz-latest.txt	375	42-melody.ib	Summerlab line 375	reused	
+summerlab-ibniz-latest.txt	376	summerlab-summerlab-line-376.ib	Summerlab line 376	included	
+summerlab-ibniz-latest.txt	377	munching-squares.ib	Summerlab line 377	reused	
+summerlab-ibniz-latest.txt	378	xor-texture-zoomer.ib	Summerlab line 378	reused	
+summerlab-ibniz-latest.txt	379	music-from-the-video.ib	Summerlab line 379	reused	
+summerlab-ibniz-latest.txt	380	munching-zoomer.ib	Summerlab line 380	reused	
+summerlab-ibniz-latest.txt	381	texture-tunnel.ib	Summerlab line 381	reused	
+summerlab-ibniz-latest.txt	382	rotozoomer.ib	Summerlab line 382	reused	
+summerlab-ibniz-latest.txt	384	ibnizdemo.ib	Summerlab line 384	reused	
+summerlab-ibniz-latest.txt	391		Summerlab line 391	skipped	unknown IBNIZ character 'f' at byte 2
+summerlab-ibniz-latest.txt	397		Summerlab line 397	skipped	Subroutine definition only; no standalone caller.
+summerlab-ibniz-latest.txt	398		Summerlab line 398	skipped	Subroutine definition only; no standalone caller.
+summerlab-ibniz-latest.txt	399		Summerlab line 399	skipped	unknown IBNIZ character 'k' at byte 8
+summerlab-ibniz-latest.txt	400		Summerlab line 400	skipped	unknown IBNIZ character 't' at byte 5
+summerlab-ibniz-latest.txt	401		Summerlab line 401	skipped	unknown IBNIZ character 't' at byte 6
+summerlab-ibniz-latest.txt	403		Summerlab line 403	skipped	Subroutine definition only; no standalone caller.
+summerlab-ibniz-latest.txt	408		Summerlab line 408	skipped	Subroutine definition only; no standalone caller.
+summerlab-ibniz-latest.txt	409		Summerlab line 409	skipped	Subroutine definition only; no standalone caller.
+summerlab-ibniz-latest.txt	410		Summerlab line 410	skipped	unknown IBNIZ character 't' at byte 12
+summerlab-ibniz-latest.txt	415		Summerlab line 415	skipped	unknown IBNIZ character 'f' at byte 2
+summerlab-ibniz-latest.txt	416		Summerlab line 416	skipped	unknown IBNIZ character 'f' at byte 2
+summerlab-ibniz-latest.txt	417		Summerlab line 417	skipped	unknown IBNIZ character 'f' at byte 2
+summerlab-ibniz-latest.txt	422	summerlab-summerlab-line-422.ib	Summerlab line 422	included	
+summerlab-ibniz-latest.txt	427		Summerlab line 427	skipped	unknown IBNIZ character 't' at byte 6
+summerlab-ibniz-latest.txt	428		Summerlab line 428	skipped	Subroutine definition only; no standalone caller.
+summerlab-ibniz-latest.txt	429		Summerlab line 429	skipped	Calls subroutines whose definitions are missing.
+summerlab-ibniz-latest.txt	430		Summerlab line 430	skipped	Calls subroutines whose definitions are missing.
+summerlab-ibniz-latest.txt	431		Summerlab line 431	skipped	Calls subroutines whose definitions are missing.
+summerlab-ibniz-latest.txt	432		Summerlab line 432	skipped	Calls subroutines whose definitions are missing.
+summerlab-ibniz-latest.txt	433		Summerlab line 433	skipped	Calls subroutines whose definitions are missing.
+summerlab-ibniz-latest.txt	434	summerlab-summerlab-line-434.ib	Summerlab line 434	included	
+summerlab-ibniz-latest.txt	437		Summerlab line 437	skipped	unknown IBNIZ character 't' at byte 4
+summerlab-ibniz-latest.txt	438		Summerlab line 438	skipped	unknown IBNIZ character 't' at byte 4
+summerlab-ibniz-latest.txt	439	summerlab-summerlab-line-439.ib	Summerlab line 439	included	
+summerlab-ibniz-latest.txt	440		Summerlab line 440	skipped	unknown IBNIZ character 't' at byte 4
+summerlab-ibniz-latest.txt	441		Summerlab line 441	skipped	unknown IBNIZ character 't' at byte 6
+summerlab-ibniz-latest.txt	442	summerlab-summerlab-line-442.ib	Summerlab line 442	included	
+summerlab-ibniz-latest.txt	443		Summerlab line 443	skipped	unknown IBNIZ character 't' at byte 6
+summerlab-ibniz-latest.txt	444	summerlab-summerlab-line-439.ib	Summerlab line 444	duplicate	
+summerlab-ibniz-latest.txt	445	summerlab-summerlab-line-445.ib	Summerlab line 445	included	
+summerlab-ibniz-latest.txt	446	summerlab-summerlab-line-446.ib	Summerlab line 446	included	
+summerlab-ibniz-latest.txt	447		Summerlab line 447	skipped	unknown IBNIZ character 't' at byte 3
+summerlab-ibniz-latest.txt	449	summerlab-summerlab-line-449.ib	Summerlab line 449	included	
+summerlab-ibniz-latest.txt	450	summerlab-summerlab-line-450.ib	Summerlab line 450	included	
+summerlab-ibniz-latest.txt	452	summerlab-summerlab-line-452.ib	Summerlab line 452	included	
+summerlab-ibniz-latest.txt	455	summerlab-summerlab-line-455.ib	Summerlab line 455	included	
+summerlab-ibniz-latest.txt	456		Summerlab line 456	skipped	unknown IBNIZ character 'm' at byte 5
+summerlab-ibniz-latest.txt	457		Summerlab line 457	skipped	unknown IBNIZ character 'm' at byte 2
+summerlab-ibniz-latest.txt	459		Summerlab line 459	skipped	unknown IBNIZ character 'm' at byte 2
+summerlab-ibniz-latest.txt	460	summerlab-summerlab-line-460.ib	Summerlab line 460	included	
+summerlab-ibniz-latest.txt	461		Summerlab line 461	skipped	unknown IBNIZ character 'm' at byte 2
+summerlab-ibniz-latest.txt	462		Summerlab line 462	skipped	unknown IBNIZ character 'm' at byte 6

@@ -2018,14 +2018,15 @@ mod tests {
         );
         let _ = ctx.run(
             egui::RawInput {
-                events: vec![egui::Event::Text("plasma".into())],
+                events: vec![egui::Event::Text("plasma.ib".into())],
                 ..Default::default()
             },
             |ctx| app.ui(ctx),
         );
         assert_eq!((app.vm.input() >> 16) & 255, 0);
         let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
-        for label in ["1 / 38 examples", "Plasma", "IBNIZ language manual"] {
+        let count = format!("1 / {} examples", examples::EXAMPLES.len());
+        for label in [count.as_str(), "Plasma", "IBNIZ language manual"] {
             assert!(output.shapes.iter().any(|shape| {
                 matches!(&shape.shape, egui::epaint::Shape::Text(text) if text.galley.text() == label)
             }), "missing browser content: {label}");
