@@ -12,6 +12,117 @@ fn run(source: &str) -> Vm {
 }
 
 #[test]
+fn ticks_without_rgb_match_full_frames_across_slice_boundaries() {
+    for source in ["^xp M d3r15&*", "", "[1]", "T", "d3.01&*"] {
+        for budget in [0, 4, 4096, 1_000_000] {
+            let program = Program::compile(source).unwrap();
+            let mut reference = Vm::new(program.clone());
+            let mut lazy = Vm::new(program);
+            let mut rgb = Vec::new();
+            for _ in 0..3 {
+                let expected = reference.render_frame(budget);
+                let mut render = lazy.begin_frame(budget);
+                let tick = loop {
+                    let before = lazy.status().instructions_executed;
+                    let tick = render.advance_tick(&mut lazy, 257);
+                    assert!(lazy.status().instructions_executed - before <= 257);
+                    if let Some(tick) = tick {
+                        break tick;
+                    }
+                };
+                lazy.rgb_into(&mut rgb);
+                assert_eq!(rgb, expected.rgb, "{source}, {budget}");
+                assert_eq!(tick.audio, expected.audio);
+                assert_eq!(tick.instructions, expected.instructions);
+                assert_eq!(tick.video_complete, expected.video_complete);
+                assert_eq!(tick.audio_complete, expected.audio_complete);
+                assert_eq!(lazy.memory(), reference.memory());
+                assert_eq!(
+                    format!("{:?}", lazy.status()),
+                    format!("{:?}", reference.status())
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn reusable_rgb_matches_scalar_reference_and_keeps_its_allocation() {
+    let mut vm = Vm::new(Program::compile("[1]").unwrap());
+    let mut rgb = Vec::with_capacity(256 * 256 * 3);
+    let pointer = rgb.as_ptr();
+    for seed in [0_u32, 0x12345678, u32::MAX] {
+        let visible = &mut vm.memory_mut()[0xf0000..0x100000];
+        let mut word = seed;
+        for slot in visible.iter_mut() {
+            word = word.wrapping_mul(1664525).wrapping_add(1013904223);
+            *slot = word as i32;
+        }
+        // Keep the original scalar conversion as an independent byte-exact oracle.
+        let mut expected = Vec::new();
+        for pair in visible.as_chunks::<2>().0 {
+            let u = (pair[0] as u32 >> 16) as u8 as i8 as f64;
+            let v = (pair[1] as u32 >> 24) as u8 as i8 as f64;
+            for &word in pair {
+                let y = (f64::from((word as u32 >> 8) as u8) - 16.0) * (255.0 / 219.0);
+                for channel in [y + 1.596 * v, y - 0.392 * u - 0.813 * v, y + 2.017 * u] {
+                    expected.push(channel.round().clamp(0.0, 255.0) as u8);
+                }
+            }
+        }
+        vm.rgb_into(&mut rgb);
+        assert_eq!(rgb, expected);
+        assert_eq!(rgb.as_ptr(), pointer);
+        assert_eq!(vm.rgb(), expected);
+    }
+}
+
+#[test]
+fn lazy_rgb_reads_visible_memory_writes_without_a_page_flip() {
+    let mut vm = Vm::new(Program::compile(".EB F0000! [1]").unwrap());
+    let mut rgb = vm.rgb();
+    assert_eq!(&rgb[..3], &[0, 0, 0]);
+    let tick = vm
+        .begin_frame(64)
+        .advance_tick(&mut vm, usize::MAX)
+        .unwrap();
+    assert!(!tick.video_complete);
+    vm.rgb_into(&mut rgb);
+    assert_eq!(&rgb[..3], &[255, 255, 255]);
+}
+
+#[test]
+fn profiled_frames_preserve_rendering_state_and_instruction_accounting() {
+    for source in ["^xp M d3r15&*", "", "[1]", "T", "d3.01&*"] {
+        for budget in [0, 1, 4, 4096, 1_000_000] {
+            let program = Program::compile(source).unwrap();
+            let mut reference = Vm::new(program.clone());
+            let mut profiled = Vm::new(program);
+            for tick in 0..3 {
+                reference.set_input(tick);
+                profiled.set_input(tick);
+                let expected = reference.render_frame(budget);
+                let (actual, profile) = profiled.render_frame_profiled(budget);
+                assert_eq!(actual.rgb, expected.rgb, "{source}, {budget}");
+                assert_eq!(actual.audio, expected.audio, "{source}, {budget}");
+                assert_eq!(actual.instructions, expected.instructions);
+                assert_eq!(actual.video_complete, expected.video_complete);
+                assert_eq!(actual.audio_complete, expected.audio_complete);
+                assert_eq!(
+                    profile.audio_instructions + profile.video_instructions,
+                    actual.instructions
+                );
+                assert_eq!(profiled.memory(), reference.memory());
+                assert_eq!(
+                    format!("{:?}", profiled.status()),
+                    format!("{:?}", reference.status())
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn sliced_frames_match_uninterrupted_rendering_and_instruction_limits() {
     for (source, budget) in [
         ("^xp M d3r15&*", 1_000_000),
@@ -516,13 +627,36 @@ fn bundled_demos_compile_and_execute_with_bounded_work() {
         let source = std::fs::read_to_string(&path).unwrap();
         let program =
             Program::compile(&source).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        let mut lazy = Vm::new(program.clone());
         let mut vm = Vm::new(program);
+        let mut rgb = Vec::new();
         for _ in 0..2 {
             let frame = vm.render_frame(4_000_000);
             assert!(frame.instructions <= 4_000_000, "{}", path.display());
             assert_eq!(frame.rgb.len(), 196608, "{}", path.display());
             assert_eq!(frame.audio.len(), 1024, "{}", path.display());
             assert!(!vm.status().stopped, "{}", path.display());
+            let tick = lazy
+                .begin_frame(4_000_000)
+                .advance_tick(&mut lazy, usize::MAX)
+                .unwrap();
+            lazy.rgb_into(&mut rgb);
+            assert_eq!(rgb, frame.rgb, "{}", path.display());
+            assert_eq!(tick.audio, frame.audio, "{}", path.display());
+            assert_eq!(tick.instructions, frame.instructions, "{}", path.display());
+            assert_eq!(
+                tick.video_complete,
+                frame.video_complete,
+                "{}",
+                path.display()
+            );
+            assert_eq!(
+                tick.audio_complete,
+                frame.audio_complete,
+                "{}",
+                path.display()
+            );
+            assert_eq!(lazy.memory(), vm.memory(), "{}", path.display());
         }
     }
 }

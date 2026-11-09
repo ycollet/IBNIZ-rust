@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::time::{Duration, Instant};
 
 use crate::{Instruction, Program};
 
@@ -77,6 +78,39 @@ pub struct Frame {
     pub audio_complete: bool,
 }
 
+/// A completed tick without RGB conversion. Read the visible page before
+/// executing more instructions if an image of this tick is needed.
+pub struct FrameTick {
+    pub audio: Vec<i16>,
+    pub instructions: usize,
+    pub video_complete: bool,
+    pub audio_complete: bool,
+}
+
+impl FrameTick {
+    /// Attach the visible page converted for this tick.
+    pub fn with_rgb(self, rgb: Vec<u8>) -> Frame {
+        assert_eq!(rgb.len(), WIDTH * HEIGHT * 3, "expected a full RGB page");
+        Frame {
+            rgb,
+            audio: self.audio,
+            instructions: self.instructions,
+            video_complete: self.video_complete,
+            audio_complete: self.audio_complete,
+        }
+    }
+}
+
+/// Opt-in measurements for one tick. Execution includes audio generation and
+/// sample extraction, but excludes RGB conversion.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FrameProfile {
+    pub execution: Duration,
+    pub rgb: Duration,
+    pub audio_instructions: usize,
+    pub video_instructions: usize,
+}
+
 /// A resumable, instruction-bounded tick. Resume on the same VM without calling
 /// `step`, `reset` or another frame renderer between slices. Live input and
 /// program replacement are supported; discard this job when resetting the VM.
@@ -103,6 +137,22 @@ impl FrameRender {
     /// tick only after its normal completion or total instruction-budget limit.
     /// A completed job must not be resumed.
     pub fn advance(&mut self, vm: &mut Vm, slice_instructions: usize) -> Option<Frame> {
+        self.advance_tick(vm, slice_instructions)
+            .map(|tick| tick.with_rgb(vm.rgb()))
+    }
+
+    /// Like `advance`, but completes the tick without converting its visible
+    /// page. Call `Vm::rgb_into` before executing more instructions when needed.
+    pub fn advance_tick(&mut self, vm: &mut Vm, slice_instructions: usize) -> Option<FrameTick> {
+        self.advance_inner(vm, slice_instructions, None)
+    }
+
+    fn advance_inner(
+        &mut self,
+        vm: &mut Vm,
+        slice_instructions: usize,
+        profile: Option<&mut FrameProfile>,
+    ) -> Option<FrameTick> {
         assert!(!self.finished, "cannot resume a completed frame");
         let mut remaining = slice_instructions;
         if self.audio.is_none() {
@@ -135,6 +185,7 @@ impl FrameRender {
             vm.preferred = Context::Video;
             vm.page_flipped = false;
         }
+        let video_start = self.instructions;
         while !vm.stopped && !vm.page_flipped && self.instructions < self.budget {
             if remaining == 0 {
                 return None;
@@ -144,10 +195,12 @@ impl FrameRender {
             remaining -= executed;
         }
         self.finished = true;
-        let rgb = vm.rgb();
+        if let Some(profile) = profile {
+            profile.audio_instructions = video_start;
+            profile.video_instructions = self.instructions - video_start;
+        }
         vm.frame = vm.frame.wrapping_add(1);
-        Some(Frame {
-            rgb,
+        Some(FrameTick {
             audio: self.audio.take().expect("completed audio phase"),
             instructions: self.instructions,
             video_complete: vm.page_flipped,
@@ -701,6 +754,22 @@ impl Vm {
             .expect("an unlimited slice completes an instruction-bounded tick")
     }
 
+    /// Render with stage timings without enabling instrumentation in normal
+    /// playback. Instruction counts split the scheduler's audio and video phases.
+    pub fn render_frame_profiled(&mut self, max_instructions: usize) -> (Frame, FrameProfile) {
+        let started = Instant::now();
+        let mut profile = FrameProfile::default();
+        let tick = self
+            .begin_frame(max_instructions)
+            .advance_inner(self, usize::MAX, Some(&mut profile))
+            .expect("an unlimited slice completes an instruction-bounded tick");
+        profile.execution = started.elapsed();
+        let started = Instant::now();
+        let frame = tick.with_rgb(self.rgb());
+        profile.rgb = started.elapsed();
+        (frame, profile)
+    }
+
     /// Begins a tick that can be resumed in small instruction slices.
     pub fn begin_frame(&mut self, max_instructions: usize) -> FrameRender {
         self.preferred = Context::Audio;
@@ -718,6 +787,15 @@ impl Vm {
     /// Convert the visible page using the reference SDL YUY2 pixel pairing.
     pub fn rgb(&self) -> Vec<u8> {
         let mut rgb = Vec::with_capacity(WIDTH * HEIGHT * 3);
+        self.rgb_into(&mut rgb);
+        rgb
+    }
+
+    /// Convert the current visible page, reusing the destination's allocation.
+    /// Always reads memory, including direct writes made without a page flip.
+    pub fn rgb_into(&self, rgb: &mut Vec<u8>) {
+        rgb.clear();
+        rgb.reserve(WIDTH * HEIGHT * 3);
         let base = VIDEO_BASE + self.visible_page * 65536;
         for pair in self.memory[base..base + 65536].as_chunks::<2>().0 {
             let first = pair[0] as u32;
@@ -733,7 +811,6 @@ impl Vm {
                 }
             }
         }
-        rgb
     }
 }
 

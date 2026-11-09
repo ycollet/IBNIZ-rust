@@ -66,6 +66,7 @@ struct App {
     dc_blocker: bool,
     volume: f32,
     texture: Option<TextureHandle>,
+    rgb: Vec<u8>,
     error: Option<String>,
     compile_error: Option<CompileError>,
     notice: String,
@@ -130,6 +131,7 @@ impl App {
             dc_blocker: true,
             volume: 0.2,
             texture: None,
+            rgb: Vec::new(),
             error,
             compile_error: None,
             notice: String::new(),
@@ -178,6 +180,7 @@ impl App {
         self.render_work = Duration::ZERO;
         self.next_tick = Instant::now();
         self.texture = None;
+        self.rgb.clear();
         if let Some(audio) = &mut self.audio {
             audio.clear();
         }
@@ -209,7 +212,7 @@ impl App {
             .render
             .as_mut()
             .expect("debugger tick")
-            .advance(&mut self.vm, 1);
+            .advance_tick(&mut self.vm, 1);
         self.render_work += started.elapsed();
         self.last_instructions = 1;
         if let Some(frame) = frame {
@@ -222,7 +225,8 @@ impl App {
             audio.clear();
             audio.set_playing(false);
         }
-        let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &self.vm.rgb());
+        self.vm.rgb_into(&mut self.rgb);
+        let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &self.rgb);
         if let Some(texture) = &mut self.texture {
             texture.set(image, egui::TextureOptions::NEAREST);
         } else {
@@ -307,6 +311,7 @@ impl App {
         self.compile_error = None;
         self.next_tick = Instant::now();
         self.texture = None;
+        self.rgb.clear();
         self.cursor = 0;
         self.last_instructions = 0;
         if let Some(audio) = &mut self.audio {
@@ -730,7 +735,7 @@ impl App {
                     .render
                     .as_mut()
                     .expect("active frame")
-                    .advance(&mut self.vm, 1024);
+                    .advance_tick(&mut self.vm, 1024);
                 if frame.is_some() || started.elapsed() >= Duration::from_millis(self.slice_ms) {
                     break frame;
                 }
@@ -751,9 +756,15 @@ impl App {
                 self.audio_budget_misses += 1;
             }
             let preview_now = Instant::now();
-            if self.preview_fps == 60 || self.texture.is_none() || preview_now >= self.next_preview
-            {
-                let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &frame.rgb);
+            let preview = self.preview_fps == 60
+                || self.texture.is_none()
+                || preview_now >= self.next_preview;
+            let capturing = self.recording.as_ref().is_some_and(Recording::is_capturing);
+            if preview || capturing {
+                self.vm.rgb_into(&mut self.rgb);
+            }
+            if preview {
+                let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &self.rgb);
                 if let Some(texture) = &mut self.texture {
                     texture.set(image, egui::TextureOptions::NEAREST);
                 } else {
@@ -771,9 +782,13 @@ impl App {
             }
             if let Some(recording) = &mut self.recording
                 && recording.is_capturing()
-                && let Err(error) = recording.capture(&frame)
             {
-                self.error = Some(error);
+                let frame = frame.with_rgb(std::mem::take(&mut self.rgb));
+                let result = recording.capture(&frame);
+                self.rgb = frame.rgb;
+                if let Err(error) = result {
+                    self.error = Some(error);
+                }
             }
             if self.vm.status().stopped {
                 self.running = false;
@@ -1633,9 +1648,12 @@ mod tests {
         assert_eq!(app.vm.status().instructions_executed, before + 1);
         assert_eq!(app.render.as_ref().unwrap().instructions(), 1025);
         assert!(app.texture.is_some());
+        assert_eq!(app.rgb, app.vm.rgb());
+        let rgb_pointer = app.rgb.as_ptr();
         app.toggle_running();
         app.tick(&ctx);
         assert_eq!(app.render.as_ref().unwrap().instructions(), 2049);
+        assert_eq!(app.rgb.as_ptr(), rgb_pointer);
     }
 
     #[test]
@@ -2194,6 +2212,7 @@ mod tests {
         app.toggle_running();
         for _ in 0..2 {
             complete_tick(&mut app, &ctx);
+            app.next_preview = Instant::now() + Duration::from_secs(60);
         }
         assert_eq!(app.recording.as_ref().unwrap().frames, 2);
         app.toggle_running();
@@ -2222,9 +2241,17 @@ mod tests {
         assert!(app.notice.contains("Saved 3 tick(s)"));
         let wav = fs::read(directory.join("sound.wav")).unwrap();
         let mut vm = Vm::new(Program::compile("^xp M d3r15&*").unwrap());
-        let samples: Vec<_> = (0..3)
-            .flat_map(|_| vm.render_frame(1_000_000).audio)
-            .collect();
+        let mut samples = Vec::new();
+        for index in 0..3 {
+            let frame = vm.render_frame(1_000_000);
+            let mut expected = Vec::new();
+            ibniz::export::write_ppm(&mut expected, &frame.rgb).unwrap();
+            assert_eq!(
+                fs::read(directory.join(format!("frame-{index:06}.ppm"))).unwrap(),
+                expected
+            );
+            samples.extend(frame.audio);
+        }
         let mut expected = Vec::new();
         ibniz::export::write_wav(&mut expected, &samples).unwrap();
         assert_eq!(wav, expected);
@@ -2279,7 +2306,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_refresh_only_throttles_texture_uploads_not_vm_ticks() {
+    fn preview_refresh_skips_rgb_conversion_and_uploads_but_not_vm_ticks() {
         let ctx = egui::Context::default();
         let mut app = app();
         app.preview_fps = 15;
@@ -2295,6 +2322,8 @@ mod tests {
                 .iter()
                 .any(|(id, _)| *id == texture)
         );
+        let rgb_pointer = app.rgb.as_ptr();
+        app.rgb.fill(0x5a);
         app.next_preview = Instant::now() + Duration::from_secs(60);
         let second = ctx.run(egui::RawInput::default(), |ctx| {
             complete_tick(&mut app, ctx);
@@ -2307,6 +2336,7 @@ mod tests {
                 .any(|(id, _)| *id == texture)
         );
         assert_eq!(app.vm.status().frame, 2);
+        assert!(app.rgb.iter().all(|byte| *byte == 0x5a));
         app.preview_fps = 60;
         let third = ctx.run(egui::RawInput::default(), |ctx| {
             complete_tick(&mut app, ctx);
@@ -2319,6 +2349,24 @@ mod tests {
                 .any(|(id, _)| *id == texture)
         );
         assert_eq!(app.vm.status().frame, 3);
+        assert_eq!(app.rgb, app.vm.rgb());
+        assert_eq!(app.rgb.as_ptr(), rgb_pointer);
+    }
+
+    #[test]
+    fn preview_reads_visible_writes_even_when_video_does_not_complete() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.replace_source(
+            ".EB F0000! [1]".into(),
+            Program::compile(".EB F0000! [1]").unwrap(),
+        );
+        app.budget = 64;
+        app.toggle_running();
+        complete_tick(&mut app, &ctx);
+        assert!(app.slow_video);
+        assert_eq!(&app.rgb[..3], &[255, 255, 255]);
+        assert!(app.texture.is_some());
     }
 
     #[test]

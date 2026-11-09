@@ -162,6 +162,10 @@ The status bar shows stack pointers, video mode, time, instruction count and
 audio health. Slow programs are bounded by `--max-instructions` per tick
 (default 4,000,000); budget exhaustion is reported instead of freezing the UI.
 Playback slows down if your machine cannot produce a tick in 1/60 second.
+Lower preview refresh rates skip RGB conversion as well as texture uploads on
+ticks that are not displayed, unless recording needs the image. RGB storage is
+reused. VM/audio ticks and full-rate recordings are unaffected; debugger steps
+always refresh the visible image, including direct writes without a page flip.
 
 **Audio gaps** counts output callbacks without ready audio during playback,
 including recovery buffering, with the total missing audio duration; the
@@ -421,6 +425,13 @@ assert_eq!(frame.audio.len(), 1024);
 
 `Vm::step` executes individual instructions. `memory_mut`, `set_input`,
 `replace_program`, `reset` and `status` support embedding and debugging.
+`begin_frame` / `FrameRender::advance_tick` complete sliced ticks without RGB
+conversion; `Vm::rgb_into(&mut Vec<u8>)` converts the visible page into reusable
+storage when needed. Convert before executing more VM instructions to capture
+that tick's image. `FrameTick::with_rgb` attaches the converted page for callers
+that need a full `Frame`. Existing `render_frame`, profiled rendering, `advance`
+and `rgb` still produce complete RGB images.
+
 `export::WavWriter` accepts a total sample count and writes successive chunks
 without requiring a seekable output. Wrap file outputs in `std::io::BufWriter`;
 call `finish` to verify the count and flush buffered output.
@@ -481,35 +492,83 @@ exercise the editor and rendering UI without opening a native window.
 cargo run --release --locked --no-default-features --example playback_bench
 ```
 
-This benchmarks 11 labeled expressions from `examples/summerlab-ibniz-latest.txt`
-and four short baselines from `examples/shortest_ibniz_programs.txt`, reading
-the expressions directly from those collections. It uses the first matching
-labeled summerlab entry where an expression appears more than once.
-Each case runs on a persistent VM for 60 warmup ticks followed by 300 measured
-ticks with the default 4,000,000-instruction budget. Timings include audio
-generation and RGB conversion, but exclude compilation, file I/O, desktop UI,
-audio resampling and device callbacks.
+This discovers every `.ib` file in the source tree's `examples` directory,
+including empty/comment-only programs, in filename order. Use
+`--examples-dir PATH` to benchmark another directory. Compilation and file I/O
+are outside the timings. Each case uses a persistent VM for 60 warmup ticks
+and 300 measured ticks, with 4,000,000 instructions per tick by default.
 
-CSV output reports median, p95 and worst tick times, ticks exceeding the
-16.7 ms playback deadline, incomplete audio/video ticks and instruction-budget
-hits. Audio misses exclude ticks where audio is disabled. Late ticks indicate
-CPU/scheduling pressure; budget hits and incomplete output can happen even
-when execution is fast. Audio generation is limited to one quarter of the
-tick's instruction budget, so audio misses need not coincide with total-budget
-hits. These are diagnostics, not actual audio-device xrun
-counts or pass/fail performance thresholds. Run on an otherwise idle machine
-and compare repeated runs with the same options.
+CSV goes to stdout; configuration, package version, OS/architecture and build
+mode go to stderr. Record `git rev-parse HEAD`, `rustc -Vv`, CPU model, and power
+settings alongside results. Compare repeated release runs on an otherwise idle
+machine, using the same options. Timings are diagnostics, not portable pass/fail
+thresholds.
 
-For longer runs or a specific expression:
+`--suite stress` selects the eight budget-limited examples listed in `TODO.md`.
+`--suite controls` selects TV noise, plasma, XOR texture, and the multiplication
+texture zoomer. `--filter TEXT` further filters filenames.
+
+`--input all` (default) runs default input for every program and adds center
+and sweep scenarios for programs containing the `U` instruction. Center sets
+mouse coordinates to (128, 128); sweep deterministically traverses coordinates
+0..255, reversing X every 256 ticks and toggling the mouse-button bit every
+60 ticks. The sequence starts at tick zero, including warmup. Select just one
+scenario with `--input default`, `center`, or `sweep`.
+
+The CSV separates median/p95/worst **execution** time (VM audio/video execution
+and audio sample extraction) from **RGB conversion** time. Total tick timings
+include both and instrumentation overhead. It also reports late ticks
+(over 16.7 ms), incomplete audio/video ticks, instruction-budget hits, stopped
+ticks, and mean instructions. Stopped programs are not counted as media misses;
+disabled audio is not counted as an audio miss. Audio generation is limited to
+one quarter of the tick budget, so audio misses need not coincide with total
+budget exhaustion. These are not audio-device xrun counts.
+
+A separate VM starts from reset for `--page-frames N` probe ticks (default: 3),
+using `--page-cap N` instructions per tick (default: 128,000,000). These probes
+do not affect the timed run. They report completed pages, capped and stopped
+ticks, and mean/max video-phase instructions per completed page. Video-phase
+work carries over across capped ticks; unfinished work is reported separately
+and excluded from completed-page statistics. Counts exclude the scheduler's
+audio phase, including video setup it may execute, and therefore measure
+video-phase work rather than all instructions executed in the video context.
+The cap applies to the whole probe tick, with the usual audio reservation.
+There is no unbounded wait for a non-producing program. High-cap probes advance
+VM time differently from low-budget playback; they are a separate workload, not
+an estimate of missing instructions in the timed run.
+
+For the original 30-second audit configuration, or a longer stress run:
 
 ```sh
 cargo run --release --locked --no-default-features --example playback_bench -- \
-  --warmup 120 --frames 3600 --filter "angelic"
+  --warmup 0 --frames 1800 --input default > baseline.csv 2> baseline.log
+cargo run --release --locked --no-default-features --example playback_bench -- \
+  --suite stress --warmup 120 --frames 3600 > stress.csv 2> stress.log
 ```
 
-Use `--max-instructions N` to compare instruction budgets. Larger audio buffers
-can absorb temporary scheduling delays but cannot fix sustained rendering
-slower than 60 ticks per second.
+#### Native texture-upload baseline
+
+```sh
+cargo run --release --locked --example playback_bench -- \
+  --desktop --suite controls > desktop-baseline.csv 2> desktop-baseline.log
+```
+
+This opens a progress window with no audio playback or flashing video. It
+measures RGB-to-egui/RGBA preparation and a full 256x256 RGBA OpenGL texture
+upload separately, synchronizing with `glFinish` to measure completion rather
+than just queueing commands. GL vendor, renderer and version are logged.
+This is an isolated native upload benchmark, not an instrumented editor paint
+or an asynchronous production GPU trace. Total native tick time also includes
+upload preparation and synchronization; it excludes UI layout, window
+presentation and vsync. Closing the window early fails the run.
+
+Headless runs leave texture-preparation/upload CSV fields empty (not zero);
+`mode` and `upload_samples` identify whether uploads were measured. Neither mode
+includes device callbacks, audio resampling, or recording I/O.
+
+Use `--max-instructions N` to compare budgets without confusing instruction
+limits with wall-clock deadlines. Increasing the budget does not guarantee
+60 Hz playback. Use `--help` for all options.
 
 ## License
 
