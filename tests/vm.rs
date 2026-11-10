@@ -163,7 +163,20 @@ fn sliced_frames_match_uninterrupted_rendering_and_instruction_limits() {
 
 #[test]
 fn fused_stack_arithmetic_matches_single_instruction_slices() {
-    for source in ["d3.01&*", "dFFFF.FFFF&* M d3.01&*"] {
+    for source in [
+        "d3.01&*",
+        "dFFFF.FFFF&* M d3.01&*",
+        "d*",
+        "E0004@ E0003! 0) d*",
+        "M D0002@ D0001! 0) d*",
+        ".0003J d* T",
+        ".0003J E0004@ T",
+        "2{d*} 2V T",
+        "2{E0004@ 0) d*} 2V T",
+        "d",
+        "1",
+        "d1&",
+    ] {
         for budget in [0, 1, 2, 3, 4, 5, 15, 16, 17, 256] {
             let program = Program::compile(source).unwrap();
             let mut reference = Vm::new(program.clone());
@@ -187,6 +200,155 @@ fn fused_stack_arithmetic_matches_single_instruction_slices() {
                     format!("{:?}", reference.status())
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn fused_memory_preserves_aliases_and_square_preserves_wrapped_temporary_slots() {
+    for (context, mask, base) in [
+        (Context::Video, 0x1ffff_usize, 0xe0000),
+        (Context::Audio, 0xffff_usize, 0xd0000),
+    ] {
+        for sp in [0, mask - 1, mask] {
+            let next = base + ((sp + 1) & mask);
+            let current = base + sp;
+            let previous = base + (sp.wrapping_sub(1) & mask);
+            for source in [
+                "d*".into(),
+                format!("{next:X}@"),
+                format!("{next:X}!"),
+                format!("{current:X}@"),
+                format!("{current:X}!"),
+                format!("{previous:X}!"),
+                "0)".into(),
+                "FFFF)".into(),
+                "FFFF.FFFF)".into(),
+                "7FFF.FFFF)".into(),
+            ] {
+                for value in [i32::MIN, i32::MAX] {
+                    let prepare = || {
+                        let initial = if context == Context::Audio {
+                            "M [1]"
+                        } else {
+                            "[1]"
+                        };
+                        let mut vm = Vm::new(Program::compile(initial).unwrap());
+                        if context == Context::Audio {
+                            vm.render_frame(4);
+                        }
+                        assert_eq!(vm.status().context, context);
+                        let initial_sp = match context {
+                            Context::Video => vm.status().video_stack_pointer,
+                            Context::Audio => vm.status().audio_stack_pointer,
+                        };
+                        for _ in 0..(sp.wrapping_sub(initial_sp) & mask) {
+                            vm.push(0x12345678);
+                        }
+                        vm.memory_mut()[current] = value;
+                        vm.replace_program(Program::compile(&source).unwrap());
+                        vm
+                    };
+                    for budget in [1, 2, 3, 7] {
+                        let mut reference = prepare();
+                        let mut fused = prepare();
+                        let mut job = reference.begin_frame(budget);
+                        let expected = loop {
+                            if let Some(frame) = job.advance(&mut reference, 1) {
+                                break frame;
+                            }
+                        };
+                        let actual = fused.render_frame(budget);
+                        assert_eq!(
+                            fused.memory(),
+                            reference.memory(),
+                            "{source}, {context:?}, sp={sp}, {value}, budget={budget}"
+                        );
+                        assert_eq!(actual.rgb, expected.rgb);
+                        assert_eq!(actual.audio, expected.audio);
+                        assert_eq!(actual.instructions, expected.instructions);
+                        assert_eq!(actual.video_complete, expected.video_complete);
+                        assert_eq!(actual.audio_complete, expected.audio_complete);
+                        assert_eq!(
+                            format!("{:?}", fused.status()),
+                            format!("{:?}", reference.status())
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn live_recompilation_refreshes_fusions_during_partial_ticks() {
+    for (before, after) in [
+        ("^xp", "E0004@"),
+        ("d*", "[1]"),
+        ("d3.01&*", "d*"),
+        ("E0004@", "0) d*"),
+    ] {
+        let program = Program::compile(before).unwrap();
+        let mut reference = Vm::new(program.clone());
+        let mut fused = Vm::new(program);
+        let mut slow_job = reference.begin_frame(83);
+        let mut fast_job = fused.begin_frame(83);
+        assert!(slow_job.advance(&mut reference, 1).is_none());
+        assert!(fast_job.advance(&mut fused, 1).is_none());
+        reference.replace_program(Program::compile(after).unwrap());
+        fused.replace_program(Program::compile(after).unwrap());
+        let expected = loop {
+            if let Some(frame) = slow_job.advance(&mut reference, 1) {
+                break frame;
+            }
+        };
+        let actual = loop {
+            if let Some(frame) = fast_job.advance(&mut fused, 7) {
+                break frame;
+            }
+        };
+        assert_eq!(fused.memory(), reference.memory(), "{before} -> {after}");
+        assert_eq!(actual.rgb, expected.rgb);
+        assert_eq!(actual.audio, expected.audio);
+        assert_eq!(actual.instructions, expected.instructions);
+        assert_eq!(
+            format!("{:?}", fused.status()),
+            format!("{:?}", reference.status())
+        );
+    }
+}
+
+#[test]
+fn bundled_examples_fused_ticks_match_single_instruction_ticks() {
+    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+    for entry in std::fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("ib") {
+            continue;
+        }
+        let program = Program::compile(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let mut reference = Vm::new(program.clone());
+        let mut fused = Vm::new(program);
+        for input in [0, 0x8080, 0x8000ffff] {
+            reference.set_input(input);
+            fused.set_input(input);
+            let mut job = reference.begin_frame(8192);
+            let expected = loop {
+                if let Some(frame) = job.advance(&mut reference, 1) {
+                    break frame;
+                }
+            };
+            let actual = fused.render_frame(8192);
+            assert_eq!(actual.rgb, expected.rgb, "{}", path.display());
+            assert_eq!(actual.audio, expected.audio, "{}", path.display());
+            assert_eq!(actual.instructions, expected.instructions);
+            assert_eq!(actual.video_complete, expected.video_complete);
+            assert_eq!(actual.audio_complete, expected.audio_complete);
+            assert_eq!(fused.memory(), reference.memory(), "{}", path.display());
+            assert_eq!(
+                format!("{:?}", fused.status()),
+                format!("{:?}", reference.status())
+            );
         }
     }
 }

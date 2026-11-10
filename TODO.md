@@ -122,13 +122,68 @@ programs can write directly into visible memory.
 
 ### 3. Optimize profiled VM hot paths
 
-- [ ] Profile `src/vm.rs` before selecting execution optimizations.
-- [ ] Expand existing instruction fusion for frequently executed arithmetic and
+- [x] Profile `src/vm.rs` before selecting execution optimizations.
+- [x] Expand existing instruction fusion for frequently executed arithmetic and
       stack sequences where measurements justify it.
-- [ ] Evaluate predecoding fusion opportunities instead of repeatedly matching
+- [x] Evaluate predecoding fusion opportunities instead of repeatedly matching
       instruction patterns.
-- [ ] Investigate loop dispatch, stack access, and expensive arithmetic only
+- [x] Investigate loop dispatch, stack access, and expensive arithmetic only
       where profiles identify bottlenecks.
+
+Native CPU sampling located the hot work in the interpreter loop. A separate
+single-instruction trace of three default-input ticks per stress/control case
+(4,000,000 instructions per tick) identified literal memory reads/stores,
+literal stack picks, and duplicate/multiply sequences as frequent operations.
+Literal reads alone occurred at roughly 9-22% of executed instruction positions
+in several affected programs; `mandelbrot.ib` also spent about 15% of its
+instructions on `L`. These are workload-specific counts, not time percentages.
+
+The compiler now records fusion hints alongside the original instructions.
+Rendering fuses literal `@`, `!`, and `)` pairs and `d*`, and uses a predecoded
+operand for the existing `d literal & *` fusion. Source instruction addresses
+are unchanged: jumps into sequences and debugger steps still execute the
+original instructions. Fusions run only when the slice and tick budgets can
+accommodate every instruction, including temporary writes and audio-position
+effects. Live recompilation refreshes the hints and execution flags.
+
+The extended dispatch is selected once per render slice only for programs
+containing eligible sequences. Simple programs retain the smaller dispatch.
+Broader multiply/stack fusions and an out-of-line memory helper were measured
+and dropped: their gains did not justify their regressions or extra complexity.
+No loops are skipped, arithmetic approximated, or instruction budgets raised.
+
+Alternating release comparisons against commit `792d669` used 60 warmup ticks
+and 300 measured ticks, with default input and the original tick budget.
+Two paired runs of the retained implementation measured the following
+reductions in median execution time (mean of the two per-run medians):
+
+| Stress example | Execution time reduction |
+|----------------|--------------------------|
+| `animated-mandelbrot-set.ib` | 14.7% |
+| `ibnizdemo.ib` | 2.0% |
+| `interactive-julia-sets.ib` | 10.6% |
+| `julia-sets-morpher.ib` | 16.3% |
+| `julia.ib` | 23.5% |
+| `mandelbrot.ib` | 7.1% |
+| `summerlab-muon.ib` | 5.6% |
+| `summerlab-snotty-ice-cream-electrode.ib` | 10.4% |
+
+These are hardware/compiler-dependent tradeoffs, not universal speedups.
+The four simple controls were within about -3% to +1% in that comparison.
+Targeted repeats also found roughly 6-10% slower execution in the
+`d7*xr/31a/` family (`summerlab-radiation.ib`,
+`summerlab-four-rotations.ib`, and Summerlab lines 254/255); their absolute
+median increases were approximately 0.16-0.25 ms. Keep these cases in future
+code-generation/regression comparisons rather than assuming every program
+benefits from the new interpreter layout.
+
+All deterministic baseline fields matched across 195 examples and 199 input
+scenarios. Differential tests compare RGB, audio, complete memory, registers,
+and instruction counts against single-instruction execution, including cyclic
+stack boundaries, aliased literal accesses, partial budgets, control-flow
+entry inside sequences, and live recompilation during a partial tick.
+Instruction-budget video misses remain unchanged; faster execution does not
+remove the instruction-count limit.
 
 Preserve instruction counts, intermediate memory writes, cyclic-stack behavior,
 single-step debugging, and instruction-bounded rendering. Do not assume pixels

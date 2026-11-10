@@ -1,6 +1,7 @@
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
+use crate::compiler::Fusion;
 use crate::{Instruction, Program};
 
 pub const WIDTH: usize = 256;
@@ -153,6 +154,20 @@ impl FrameRender {
         slice_instructions: usize,
         profile: Option<&mut FrameProfile>,
     ) -> Option<FrameTick> {
+        // Keep the larger fusion dispatch out of programs that cannot use it.
+        if vm.has_extended_fusion {
+            self.advance_specialized::<true>(vm, slice_instructions, profile)
+        } else {
+            self.advance_specialized::<false>(vm, slice_instructions, profile)
+        }
+    }
+
+    fn advance_specialized<const EXTENDED: bool>(
+        &mut self,
+        vm: &mut Vm,
+        slice_instructions: usize,
+        profile: Option<&mut FrameProfile>,
+    ) -> Option<FrameTick> {
         assert!(!self.finished, "cannot resume a completed frame");
         let mut remaining = slice_instructions;
         if self.audio.is_none() {
@@ -163,8 +178,9 @@ impl FrameRender {
                 if remaining == 0 {
                     return None;
                 }
-                let executed =
-                    vm.step_instructions(remaining.min(self.budget / 4 - self.instructions));
+                let executed = vm.step_instructions::<EXTENDED>(
+                    remaining.min(self.budget / 4 - self.instructions),
+                );
                 self.instructions += executed;
                 remaining -= executed;
             }
@@ -190,7 +206,8 @@ impl FrameRender {
             if remaining == 0 {
                 return None;
             }
-            let executed = vm.step_instructions(remaining.min(self.budget - self.instructions));
+            let executed =
+                vm.step_instructions::<EXTENDED>(remaining.min(self.budget - self.instructions));
             self.instructions += executed;
             remaining -= executed;
         }
@@ -213,6 +230,7 @@ impl FrameRender {
 pub struct Vm {
     program: Program,
     has_stack_arithmetic_fusion: bool,
+    has_extended_fusion: bool,
     memory: Vec<i32>,
     registers: [Registers; 2],
     context: Context,
@@ -237,6 +255,7 @@ impl Vm {
     pub fn new(program: Program) -> Self {
         let mut vm = Self {
             has_stack_arithmetic_fusion: has_stack_arithmetic_fusion(&program),
+            has_extended_fusion: has_extended_fusion(&program),
             program,
             memory: vec![0; MEMORY_WORDS],
             registers: [Registers::new(0), Registers::new(1)],
@@ -283,6 +302,7 @@ impl Vm {
     /// Live recompilation preserves memory, stack pointers, timers and input.
     pub fn replace_program(&mut self, program: Program) {
         self.has_stack_arithmetic_fusion = has_stack_arithmetic_fusion(&program);
+        self.has_extended_fusion = has_extended_fusion(&program);
         self.program = program;
         self.ip %= self.program.code.len();
         self.data_pointer = if self.program.data.is_empty() {
@@ -527,11 +547,11 @@ impl Vm {
 
     /// Execute one instruction. All overflow and address wrapping is explicit.
     pub fn step(&mut self) {
-        self.step_instructions(1);
+        self.step_instructions::<false>(1);
     }
 
     #[inline(always)]
-    fn step_instructions(&mut self, limit: usize) -> usize {
+    fn step_instructions<const EXTENDED: bool>(&mut self, limit: usize) -> usize {
         if self.stopped {
             return 0;
         }
@@ -546,17 +566,17 @@ impl Vm {
         match instruction {
             Instruction::Immediate(value) => {
                 if limit >= 2
-                    && let Instruction::Op(op) = self.program.code[self.ip]
-                    && matches!(
-                        op,
-                        b'+' | b'-' | b'*' | b'/' | b'%' | b'&' | b'|' | b'^' | b'r' | b'l' | b'a'
-                    )
+                    && let Some(op) = self.immediate_fusion::<EXTENDED>(index)
                 {
-                    // Preserve the temporary stack write as well as instruction accounting.
-                    let temporary =
-                        self.stack_base() + (self.reg().sp.wrapping_add(1) & self.stack_mask());
-                    self.memory[temporary] = value;
-                    self.set_top(binary_value(op, a, value));
+                    if EXTENDED && matches!(op, b'@' | b')' | b'!') {
+                        self.fused_memory(op, a, value);
+                    } else {
+                        // Popped slots remain observable through memory instructions.
+                        let temporary =
+                            self.stack_base() + (self.reg().sp.wrapping_add(1) & self.stack_mask());
+                        self.memory[temporary] = value;
+                        self.set_top(binary_value(op, a, value));
+                    }
                     self.ip += 1;
                     if self.ip == self.program.code.len() {
                         self.ip = 0;
@@ -591,14 +611,8 @@ impl Vm {
                 b'd' => {
                     if self.has_stack_arithmetic_fusion
                         && limit >= 4
-                        && let [
-                            Instruction::Immediate(value),
-                            Instruction::Op(b'&'),
-                            Instruction::Op(b'*'),
-                            ..,
-                        ] = &self.program.code[self.ip..]
+                        && let Fusion::MaskMultiply(value) = self.program.fusions[index]
                     {
-                        let value = *value;
                         let base = self.stack_base();
                         let sp = self.reg().sp;
                         let mask = self.stack_mask();
@@ -613,6 +627,22 @@ impl Vm {
                         }
                         self.instructions_executed = self.instructions_executed.wrapping_add(3);
                         return 4;
+                    }
+                    if EXTENDED
+                        && self.has_stack_arithmetic_fusion
+                        && limit >= 2
+                        && let Fusion::Square = self.program.fusions[index]
+                    {
+                        let temporary =
+                            self.stack_base() + (self.reg().sp.wrapping_add(1) & self.stack_mask());
+                        self.memory[temporary] = a;
+                        self.set_top(binary_value(b'*', a, a));
+                        self.ip += 1;
+                        if self.ip == self.program.code.len() {
+                            self.ip = 0;
+                        }
+                        self.instructions_executed = self.instructions_executed.wrapping_add(1);
+                        return 2;
                     }
                     self.push(a);
                 }
@@ -812,6 +842,45 @@ impl Vm {
             }
         }
     }
+
+    #[inline(always)]
+    fn immediate_fusion<const EXTENDED: bool>(&self, index: usize) -> Option<u8> {
+        if EXTENDED {
+            if let Fusion::Immediate(op) = self.program.fusions[index] {
+                return Some(op);
+            }
+        } else if let Instruction::Op(op) = self.program.code[self.ip]
+            && matches!(
+                op,
+                b'+' | b'-' | b'*' | b'/' | b'%' | b'&' | b'|' | b'^' | b'r' | b'l' | b'a'
+            )
+        {
+            return Some(op);
+        }
+        None
+    }
+
+    #[inline(always)]
+    fn fused_memory(&mut self, op: u8, a: i32, value: i32) {
+        let base = self.stack_base();
+        let sp = self.reg().sp;
+        let mask = self.stack_mask();
+        // Write first: reads and stores may alias the pushed address slot.
+        self.memory[base + (sp.wrapping_add(1) & mask)] = value;
+        if op == b'!' {
+            self.move_sp(-1);
+            self.memory[address(value)] = a;
+        } else {
+            let slot = if op == b'@' {
+                address(value)
+            } else {
+                base + (sp.wrapping_sub((value as u32).rotate_left(16) as usize) & mask)
+            };
+            let result = self.memory[slot];
+            self.move_sp(1);
+            self.set_top(result);
+        }
+    }
 }
 
 fn address(value: i32) -> usize {
@@ -819,15 +888,17 @@ fn address(value: i32) -> usize {
 }
 
 fn has_stack_arithmetic_fusion(program: &Program) -> bool {
-    program.code.windows(4).any(|code| {
+    program
+        .fusions
+        .iter()
+        .any(|fusion| matches!(fusion, Fusion::Square | Fusion::MaskMultiply(_)))
+}
+
+fn has_extended_fusion(program: &Program) -> bool {
+    program.fusions.iter().any(|fusion| {
         matches!(
-            code,
-            [
-                Instruction::Op(b'd'),
-                Instruction::Immediate(_),
-                Instruction::Op(b'&'),
-                Instruction::Op(b'*'),
-            ]
+            fusion,
+            Fusion::Square | Fusion::Immediate(b'@' | b')' | b'!')
         )
     })
 }

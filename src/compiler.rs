@@ -8,9 +8,18 @@ pub enum Instruction {
     End,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Fusion {
+    None,
+    Immediate(u8),
+    Square,
+    MaskMultiply(i32),
+}
+
 #[derive(Clone, Debug)]
 pub struct Program {
     pub(crate) code: Vec<Instruction>,
+    pub(crate) fusions: Vec<Fusion>,
     pub(crate) hints: Vec<usize>,
     pub(crate) data: Vec<bool>,
     pub(crate) source_ranges: Vec<Range<usize>>,
@@ -142,8 +151,50 @@ impl Program {
             }
         }
         hints[code.len() - 1] = media;
+        // Side metadata preserves source instruction addresses, including jumps
+        // into the middle of a sequence and single-instruction debugger steps.
+        let fusions = code
+            .iter()
+            .enumerate()
+            .map(
+                |(index, instruction)| match (instruction, &code[index + 1..]) {
+                    (Instruction::Immediate(_), [Instruction::Op(op), ..])
+                        if matches!(
+                            op,
+                            b'+' | b'-'
+                                | b'*'
+                                | b'/'
+                                | b'%'
+                                | b'&'
+                                | b'|'
+                                | b'^'
+                                | b'r'
+                                | b'l'
+                                | b'a'
+                                | b'@'
+                                | b'!'
+                                | b')'
+                        ) =>
+                    {
+                        Fusion::Immediate(*op)
+                    }
+                    (
+                        Instruction::Op(b'd'),
+                        [
+                            Instruction::Immediate(value),
+                            Instruction::Op(b'&'),
+                            Instruction::Op(b'*'),
+                            ..,
+                        ],
+                    ) => Fusion::MaskMultiply(*value),
+                    (Instruction::Op(b'd'), [Instruction::Op(b'*'), ..]) => Fusion::Square,
+                    _ => Fusion::None,
+                },
+            )
+            .collect();
         Ok(Self {
             code,
+            fusions,
             hints,
             data,
             source_ranges,

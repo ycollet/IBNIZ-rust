@@ -432,6 +432,12 @@ that tick's image. `FrameTick::with_rgb` attaches the converted page for callers
 that need a full `Frame`. Existing `render_frame`, profiled rendering, `advance`
 and `rgb` still produce complete RGB images.
 
+Rendering uses compiler-side fusion hints for selected arithmetic, literal
+memory accesses, and stack picks. Original instruction addresses, logical
+instruction counts, popped-slot memory writes, and single-step behavior are
+preserved. Fusion never exceeds a slice or tick instruction budget.
+See `TODO.md` for measured gains and known workload-dependent tradeoffs.
+
 `export::WavWriter` accepts a total sample count and writes successive chunks
 without requiring a seekable output. Wrap file outputs in `std::io::BufWriter`;
 call `finish` to verify the count and flush buffered output.
