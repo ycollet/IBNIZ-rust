@@ -244,12 +244,70 @@ Raising the budget is not itself an execution optimization or a guarantee of
 
 ### 5. Validate each optimization
 
-- [ ] Compare optimized and single-instruction execution: RGB, audio, memory,
+- [x] Compare optimized and single-instruction execution: RGB, audio, memory,
       registers, and instruction counts, including budget and slice boundaries.
-- [ ] Run existing reference, slicing, debugger, and recording tests.
-- [ ] Repeat the 195-example, 1,800-tick audit and compare against the baseline.
+- [x] Run existing reference, slicing, debugger, and recording tests.
+- [x] Repeat the 195-example, 1,800-tick audit and compare against the baseline.
 - [ ] Confirm simple examples do not regress and complex examples improve in
       measured execution time, not merely through a larger instruction budget.
+
+Validation of `f2a82a0` passed the desktop and headless Rust suites, the
+release-mode VM differential and C-reference tests, and playback-benchmark
+tests in both feature configurations. Both normally ignored FFmpeg tests
+were explicitly run with installed FFmpeg/ffprobe and passed, covering MP4
+encoding and encoder cancellation with source-media retention. Clippy passed
+with warnings denied for desktop/all features and headless targets, and
+formatting checks passed.
+
+The differential suite compares full memory, RGB, audio, VM status/registers,
+and logical instruction counts against single-instruction rendering. Cases
+include tick/slice boundaries, stack wraparound, aliased memory, control-flow
+entry inside fused sequences, partial-tick recompilation, and all 195 bundled
+programs with default, center, and button/coordinate input. Desktop tests
+also cover lazy conversion, debugger stepping, preview throttling, budget
+presets, NSM persistence, and full-rate recording.
+
+The full audit reran all 195 programs for 1,800 measured ticks each (351,000
+ticks total), with no warmup, default input, and the original 4,000,000
+instruction budget. Every example's video-miss, audio-miss, and budget-hit
+count matched the original 30-second audit exactly. The same eight examples
+had 9,385 incomplete video ticks in total; the remaining 187 had none.
+There were no audio-budget misses or terminated programs. This confirms
+unchanged budget-limited behavior, not elimination of the eight examples'
+instruction limits.
+
+The run used Rust 1.99.1 / LLVM 23.1.3 on an Apple M4 Max. All examples' p95
+headless tick times were below 16.7 ms (maximum 9.219 ms). There was one
+wall-clock outlier: `mandelbrot.ib` took 25.077 ms on one tick, versus zero
+late ticks in the original audit. Deadline counts include scheduling noise
+and are reported separately from the identical deterministic budget counts;
+timings collected on different dates are not used to establish speedups.
+
+**The no-performance-regression gate remains unmet.** Three alternating
+baseline/optimized release pairs compared commit `792d669` with `f2a82a0`
+on the audit machine. All used default input, 60 warmup ticks, 300 measured
+ticks, and the same 4,000,000-instruction tick budget. Video/audio misses,
+budget hits and mean instruction counts matched exactly in all 16 selected
+stress/control/regression cases. The eight stress cases improved by
+approximately 0.9-20.9% in median execution time (median of three per-run
+medians), so those gains do not come from increasing the instruction budget.
+However, the following slowdowns were reproduced:
+
+| Example | Baseline median ms | Optimized median ms | Slowdown |
+|---------|--------------------|---------------------|----------|
+| `tv-noise.ib` | 0.463 | 0.482 | 4.0% |
+| `xor-texture.ib` | 0.611 | 0.636 | 4.2% |
+| `summerlab-radiation.ib` | 1.606 | 1.774 | 10.4% |
+| `summerlab-four-rotations.ib` | 2.807 | 2.980 | 6.2% |
+| `summerlab-summerlab-line-254.ib` | 3.402 | 3.663 | 7.7% |
+| `summerlab-summerlab-line-255.ib` | 3.749 | 3.973 | 5.9% |
+
+`plasma.ib` was essentially unchanged (about 0.1% slower), while
+`mul-texture-zoomer.ib` improved by about 0.8%. These hardware/compiler-specific
+measurements are evidence for follow-up interpreter/code-generation work,
+not portable timing assertions for CI. Do not mark the final checkbox complete
+until the reproduced regressions have been addressed and paired comparisons
+repeated.
 
 Start with baseline instrumentation and reusable/lazy RGB conversion, then use
 profiles to guide VM fusion. Defer JIT compilation, GPU execution, and threading
