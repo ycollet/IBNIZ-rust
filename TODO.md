@@ -191,11 +191,53 @@ are independent: programs can access shared memory.
 
 ### 4. Tune instruction budgets separately
 
-- [ ] After execution improvements, evaluate an opt-in higher-budget playback
+- [x] After execution improvements, evaluate an opt-in higher-budget playback
       mode while retaining bounded work slices and responsive controls.
-- [ ] Distinguish instruction-budget misses from wall-clock deadline misses in
+- [x] Distinguish instruction-budget misses from wall-clock deadline misses in
       performance comparisons.
-- [ ] Confirm audio scheduling and recording semantics remain unchanged.
+- [x] Confirm audio scheduling and recording semantics remain unchanged.
+
+The Playback menu now offers Default (4M), Complex (64M), and Very complex
+(128M) presets alongside the existing custom budget field. Selecting a preset
+only changes the next tick's numeric budget. Partial ticks retain their
+original budgets, controls and work slices remain unchanged, and no automatic
+adaptation or VM reset occurs. Numeric budgets continue to use the existing
+NSM session format. Tick diagnostics distinguish the actual current/last
+budget from the configured next budget, and cumulative video-budget misses
+are shown separately from late ticks and audio-budget misses.
+
+Release-mode headless comparisons on the audit machine used the optimized
+VM, default input, 60 warmup ticks and 300 measured ticks per stress case.
+Each cell below counts measured ticks, not dropped device frames; p95 is total
+headless tick time. No measured audio-budget misses occurred at any preset.
+
+| Example | Video misses 4M | Video misses 64M | Video misses 128M | Late ticks 64M / 128M | p95 ms 64M / 128M |
+|---------|-----------------|------------------|-------------------|-----------------------|-------------------|
+| `animated-mandelbrot-set.ib` | 240 | 0 | 0 | 300 / 300 | 59.5 / 63.4 |
+| `ibnizdemo.ib` | 52 | 0 | 0 | 0 / 0 | 10.6 / 10.7 |
+| `interactive-julia-sets.ib` | 200 | 0 | 0 | 300 / 300 | 19.4 / 19.6 |
+| `julia-sets-morpher.ib` | 174 | 0 | 0 | 102 / 123 | 22.9 / 23.5 |
+| `julia.ib` | 215 | 0 | 0 | 300 / 300 | 35.4 / 38.2 |
+| `mandelbrot.ib` | 247 | 0 | 0 | 300 / 300 | 75.0 / 76.5 |
+| `summerlab-muon.ib` | 285 | 150 | 0 | 300 / 300 | 72.9 / 95.0 |
+| `summerlab-snotty-ice-cream-electrode.ib` | 150 | 0 | 0 | 0 / 0 | 9.7 / 9.7 |
+
+At 4M none of these measured ticks exceeded 16.7 ms, despite frequent video
+budget misses. At 64M seven examples completed every measured video page;
+128M also eliminated the muon misses, but neither higher preset guarantees
+real-time playback. Start with 64M for `ibnizdemo.ib` and
+`summerlab-snotty-ice-cream-electrode.ib`; the heavier examples still need
+substantial execution speedups. Higher-cap runs are separate workloads because
+budget-limited ticks advance time differently; this is not a same-image
+speedup comparison or a guarantee about interactive inputs or device xruns.
+
+Scheduling remains the same: one quarter of the selected instruction budget
+is reserved for the audio phase, each completed tick supplies 1024 samples at
+61440 Hz, and recording captures one image and its audio per VM tick,
+regardless of preview refresh. Preset/partial-tick tests verify no reset or
+budget replacement mid-tick. Recording comparisons across all three presets
+match reference PPM frames and unscaled WAV samples, including pause/resume
+and compile-error suspension. See the README for reproducible budget commands.
 
 Raising the budget is not itself an execution optimization or a guarantee of
 60 Hz playback. Heavy fractals and `summerlab-muon.ib` need substantial speedups.

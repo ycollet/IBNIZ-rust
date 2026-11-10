@@ -20,6 +20,11 @@ use recording::Recording;
 
 const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / 60);
 const MAX_WORK_SLICE_MS: u64 = 128;
+const BUDGET_PRESETS: [(&str, usize); 3] = [
+    ("Default (4M)", 4_000_000),
+    ("Complex (64M)", 64_000_000),
+    ("Very complex (128M)", 128_000_000),
+];
 
 pub fn launch(options: Options, program: Program) -> eframe::Result {
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../assets/ibniz.png"))
@@ -79,10 +84,12 @@ struct App {
     buffer_ms: u32,
     next_tick: Instant,
     last_instructions: usize,
+    last_budget: usize,
     slow_video: bool,
     slow_audio: bool,
     late_ticks: u64,
     audio_budget_misses: u64,
+    video_budget_misses: u64,
     last_tick_duration: Duration,
     cursor: usize,
     recording: Option<Recording>,
@@ -144,10 +151,12 @@ impl App {
             buffer_ms: audio::DEFAULT_BUFFER_MS,
             next_tick: Instant::now(),
             last_instructions: 0,
+            last_budget: options.budget,
             slow_video: false,
             slow_audio: false,
             late_ticks: 0,
             audio_budget_misses: 0,
+            video_budget_misses: 0,
             last_tick_duration: Duration::ZERO,
             cursor: 0,
             recording: None,
@@ -216,6 +225,7 @@ impl App {
         self.render_work += started.elapsed();
         self.last_instructions = 1;
         if let Some(frame) = frame {
+            self.last_budget = self.render.as_ref().expect("debugger tick").budget();
             self.render = None;
             self.last_instructions = frame.instructions;
             self.last_tick_duration = self.render_work;
@@ -237,8 +247,10 @@ impl App {
     }
 
     fn reset_counters(&mut self) {
+        self.last_budget = self.budget;
         self.late_ticks = 0;
         self.audio_budget_misses = 0;
+        self.video_budget_misses = 0;
         self.last_tick_duration = Duration::ZERO;
         self.slow_video = false;
         self.slow_audio = false;
@@ -745,6 +757,7 @@ impl App {
                 ctx.request_repaint();
                 return;
             };
+            self.last_budget = self.render.as_ref().expect("active frame").budget();
             self.render = None;
             let finishing = Instant::now();
             self.last_instructions = frame.instructions;
@@ -754,6 +767,9 @@ impl App {
                 && !self.vm.status().stopped;
             if self.slow_audio {
                 self.audio_budget_misses += 1;
+            }
+            if self.slow_video {
+                self.video_budget_misses += 1;
             }
             let preview_now = Instant::now();
             let preview = self.preview_fps == 60
@@ -939,8 +955,16 @@ impl App {
                             ui.selectable_value(&mut self.preview_fps, fps, format!("{fps} fps"));
                         }
                     });
+                    ui.label("Instruction budget presets (next tick)");
+                    for (label, budget) in BUDGET_PRESETS {
+                        ui.selectable_value(&mut self.budget, budget, label);
+                    }
                     ui.horizontal(|ui| {
-                        ui.label("Instructions/tick");
+                        ui.label(if BUDGET_PRESETS.iter().any(|(_, budget)| *budget == self.budget) {
+                            "Instructions/tick"
+                        } else {
+                            "Instructions/tick (custom)"
+                        });
                         ui.add(
                             egui::DragValue::new(&mut self.budget)
                                 .range(4..=usize::MAX)
@@ -950,11 +974,12 @@ impl App {
                              expressions but may slow playback. No VM reset.",
                         );
                     });
+                    ui.small("Higher budgets can reduce incomplete frames but do not guarantee 60 Hz. Work slices and the current tick are unchanged.");
                     ui.add(egui::Slider::new(&mut self.slice_ms, 1..=MAX_WORK_SLICE_MS).text("Work slice (ms)"))
                         .on_hover_text(
                             "Maximum VM work per UI update, checked every 1024 instructions. \
                              Lower values favor editor responsiveness; higher values favor throughput. \
-                             Finishing a tick also converts its video image.",
+                             Preview or recording conversion adds work at tick completion.",
                         );
                     if ui.add(
                         egui::Slider::new(&mut self.buffer_ms, 20..=audio::MAX_BUFFER_MS)
@@ -1046,20 +1071,22 @@ impl App {
                 if self.slow_audio { "behind" } else { "ready" },
             ));
             let (instructions, budget) = self.render.as_ref().map_or(
-                (self.last_instructions, self.budget),
+                (self.last_instructions, self.last_budget),
                 |render| (render.instructions(), render.budget()),
             );
             ui.small(format!(
-                "Tick work: {instructions} / {budget} instructions ({} ms work slices)",
-                self.slice_ms,
+                "Tick work: {instructions} / {budget} instructions ({} ms work slices) | Next tick budget: {}",
+                self.slice_ms, self.budget,
             ));
             ui.label(format!(
-                "Late ticks: {} | Last tick: {:.1} ms / 16.7 ms | Audio budget misses: {}",
+                "Late ticks: {} | Last tick: {:.1} ms / 16.7 ms | Audio budget misses: {} | Video budget misses: {}",
                 self.late_ticks, self.last_tick_duration.as_secs_f64() * 1000.0,
-                self.audio_budget_misses,
+                self.audio_budget_misses, self.video_budget_misses,
             )).on_hover_text(
                 "Late ticks missed the 60 Hz deadline (rendering cost or UI/scheduling delays). \
                  Audio budget misses mean the VM could not generate a full audio tick. \
+                 Video budget misses mean the VM did not reach a video page flip within its instruction limit. \
+                 A tick can hit an instruction limit without missing its wall-clock deadline, or vice versa. \
                  These are not necessarily device playback gaps. F2 or loading a file resets counters.",
             );
             if let Some(error) = &self.compile_error {
@@ -1225,7 +1252,7 @@ impl App {
                 ui.label("NSM: launch from a session manager to save source and playback settings in its assigned project. Loading restarts the VM at time zero. File Load is disabled; examples are imported into the session. Stop recording and wait for finalization before saving.");
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.label("Recording: choose an output folder and Start/Stop to save PPM frames and full-scale, unfiltered WAV audio. Run/pause and compile errors pause capture. Optional MP4 uses installed FFmpeg after Stop; original files are retained.");
-                ui.label("Playback: adjust preview refresh, instructions per VM tick, UI work slices and audio buffering without resetting the VM. Preview refresh affects only the display, not recordings. Audio rebuffering uses short fades; sustained overload can still cause gaps.");
+                ui.label("Playback: choose Default (4M), Complex (64M), Very complex (128M), or custom instructions per VM tick. Budget changes apply to the next tick without resetting the VM or changing work slices; higher budgets do not guarantee 60 Hz. Preview refresh affects only the display, not recordings. Audio rebuffering uses short fades; sustained overload can still cause gaps.");
                 ui.label("Debugger: pause, then Step/F3 for one instruction with normal media scheduling and no sound. Inspect either context's cyclic data/return stacks and all physical memory in read-only pages. Hover values for signed/16.16 forms. The next instruction is highlighted in the editor; implicit end-of-program is marked at EOF. Fix compile errors and finish recording before stepping.");
                 ui.separator();
                 ui.heading("IBNIZ instruction reference");
@@ -1554,6 +1581,7 @@ mod tests {
         app.vm.memory_mut()[0x123] = 42;
         app.late_ticks = 10;
         app.audio_budget_misses = 12;
+        app.video_budget_misses = 14;
         app.cursor = 5;
         app.editor = false;
         let budget = app.budget;
@@ -1571,6 +1599,7 @@ mod tests {
         assert_eq!(app.vm.status().frame, 0);
         assert_eq!(app.late_ticks, 0);
         assert_eq!(app.audio_budget_misses, 0);
+        assert_eq!(app.video_budget_misses, 0);
         assert_eq!(app.cursor, 0);
         assert_eq!(app.budget, budget);
         assert_eq!(app.slice_ms, 0);
@@ -2165,28 +2194,82 @@ mod tests {
         app.tick(&ctx);
         assert_eq!(app.late_ticks, 1);
         assert_eq!(app.audio_budget_misses, 1);
+        assert_eq!(app.video_budget_misses, 1);
         assert!(app.slow_audio);
 
         app.toggle_running();
         app.tick(&ctx);
         assert_eq!(app.late_ticks, 1);
         assert_eq!(app.audio_budget_misses, 1);
+        assert_eq!(app.video_budget_misses, 1);
         app.source.push(' ');
         app.recompile();
         assert_eq!(app.audio_budget_misses, 1);
+        assert_eq!(app.video_budget_misses, 1);
 
         app.toggle_running();
         app.source = "invalid".into();
         app.recompile();
         app.tick(&ctx);
         assert_eq!(app.audio_budget_misses, 1);
+        assert_eq!(app.video_budget_misses, 1);
 
         app.reset();
         assert_eq!(app.late_ticks, 0);
         assert_eq!(app.audio_budget_misses, 0);
+        assert_eq!(app.video_budget_misses, 0);
         assert_eq!(app.last_tick_duration, Duration::ZERO);
         assert!(!app.slow_audio);
         assert!(!app.slow_video);
+
+        app.replace_source("T".into(), Program::compile("T").unwrap());
+        app.running = true;
+        app.next_tick = Instant::now() - Duration::from_secs(1);
+        app.tick(&ctx);
+        assert_eq!(app.late_ticks, 1);
+        assert_eq!(app.audio_budget_misses, 0);
+        assert_eq!(app.video_budget_misses, 0);
+    }
+
+    #[test]
+    fn playback_budget_presets_preserve_partial_ticks_and_allow_custom_values() {
+        let ctx = egui::Context::default();
+        ctx.style_mut(|style| style.animation_time = 0.0);
+        let mut app = app();
+        app.replace_source("[1]".into(), Program::compile("[1]").unwrap());
+        app.budget = 4096;
+        app.slice_ms = 0;
+        app.vm.memory_mut()[0x123] = 42;
+        app.toggle_running();
+        app.tick(&ctx);
+        app.toggle_running();
+        app.slice_ms = 3;
+        let executed = app.vm.status().instructions_executed;
+        let before = app.vm.status();
+        for (label, budget) in BUDGET_PRESETS {
+            click_label(&mut app, &ctx, "Playback");
+            click_label(&mut app, &ctx, label);
+            assert_eq!(app.budget, budget);
+            assert_eq!(app.render.as_ref().unwrap().budget(), 4096);
+            assert_eq!(
+                app.render.as_ref().unwrap().instructions(),
+                executed as usize
+            );
+            assert_eq!(app.vm.memory()[0x123], 42);
+            assert_eq!(format!("{:?}", app.vm.status()), format!("{before:?}"));
+            assert_eq!(app.slice_ms, 3);
+            assert!(!app.running);
+        }
+        app.budget = 123_456;
+        app.slice_ms = 0;
+        app.toggle_running();
+        complete_tick(&mut app, &ctx);
+        assert_eq!(app.last_instructions, 4096);
+        assert_eq!(app.last_budget, 4096);
+        app.next_tick = Instant::now();
+        app.tick(&ctx);
+        assert_eq!(app.render.as_ref().unwrap().budget(), 123_456);
+        assert_eq!(app.render.as_ref().unwrap().instructions(), 1024);
     }
 
     #[test]
@@ -2210,7 +2293,8 @@ mod tests {
         assert_eq!(app.recording.as_ref().unwrap().frames, 0);
 
         app.toggle_running();
-        for _ in 0..2 {
+        for (_, budget) in BUDGET_PRESETS[..2].iter().copied() {
+            app.budget = budget;
             complete_tick(&mut app, &ctx);
             app.next_preview = Instant::now() + Duration::from_secs(60);
         }
@@ -2225,6 +2309,7 @@ mod tests {
         assert_eq!(app.recording.as_ref().unwrap().frames, 2);
         app.source = "^xp M d3r15&*".into();
         app.recompile();
+        app.budget = BUDGET_PRESETS[2].1;
         complete_tick(&mut app, &ctx);
         assert_eq!(app.recording.as_ref().unwrap().frames, 3);
 
@@ -2242,8 +2327,8 @@ mod tests {
         let wav = fs::read(directory.join("sound.wav")).unwrap();
         let mut vm = Vm::new(Program::compile("^xp M d3r15&*").unwrap());
         let mut samples = Vec::new();
-        for index in 0..3 {
-            let frame = vm.render_frame(1_000_000);
+        for (index, (_, budget)) in BUDGET_PRESETS.iter().enumerate() {
+            let frame = vm.render_frame(*budget);
             let mut expected = Vec::new();
             ibniz::export::write_ppm(&mut expected, &frame.rgb).unwrap();
             assert_eq!(
