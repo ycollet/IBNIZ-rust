@@ -139,7 +139,7 @@ rsvg-convert --width 256 --height 256 --output assets/ibniz.png assets/ibniz.svg
 | F1 | Run / pause |
 | F2 | Reset memory, stacks and time |
 | F3 | Step one VM instruction while paused, with no active/finishing recording |
-| F12 | Show / hide help (shortcuts and instruction reference) |
+| F12 | Show / hide help (shortcuts, instruction reference and bundled full manual) |
 | Tab | Show / hide editor |
 | Ctrl/Cmd+S | Save to the file path above the editor |
 | Ctrl+Up / Ctrl+Down | Increment / decrement the hex digit under the cursor, with carry |
@@ -433,8 +433,13 @@ d3r15&*             "42 melody", in the audio context
 The compiler/interpreter implements the full documented instruction set,
 including `z`, loops, subroutines, return stacks, arbitrary memory access,
 user input, data segments, and automatic TYX/T video mode detection.
-See the [original language manual](https://github.com/viznut/IBNIZ/blob/master/src/ibniz.txt)
-for the complete instruction reference.
+See the bundled [original language manual](ibniz.txt) for the complete
+instruction reference. It is also embedded in **Help (F12)** under
+**Full language manual (bundled, offline)**, with selectable, read-only text;
+no browser or network connection is needed. The file is preserved unchanged
+from [upstream revision `3ba06ae5f2cf5765c0e06874a093f767054b6359`](https://github.com/viznut/IBNIZ/blob/3ba06ae5f2cf5765c0e06874a093f767054b6359/src/ibniz.txt)
+under the [Zlib license](LICENSE). Its build and interface instructions refer
+to the original C implementation, not this Rust frontend.
 
 ```rust
 use ibniz::{Program, Vm};

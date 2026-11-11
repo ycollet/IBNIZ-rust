@@ -1243,6 +1243,21 @@ impl App {
             .default_width(520.0)
             .vscroll(true)
             .show(ctx, |ui| {
+                ui.collapsing("Full language manual (bundled, offline)", |ui| {
+                    ui.small("Original upstream manual, distributed under the Zlib license. Its interface/build instructions describe the original C implementation; use the shortcuts below for this app.");
+                    egui::ScrollArea::both()
+                        .id_salt("language-manual")
+                        .max_height(360.0)
+                        .show(ui, |ui| {
+                            let mut manual = include_str!("../../ibniz.txt");
+                            ui.add(
+                                egui::TextEdit::multiline(&mut manual)
+                                    .code_editor()
+                                    .desired_width(720.0),
+                            );
+                        });
+                });
+                ui.separator();
                 ui.heading("Keyboard shortcuts");
                 ui.label("F12: show / hide help\nEsc: cancel confirmation, close help, examples or debugger, otherwise exit\nF1: run / pause\nF2: reset memory, stacks and time\nF3: step one VM instruction (paused, no recording)\nTab: show / hide editor\nCtrl/Cmd+S: save\nCtrl+Up / Down: adjust the hex digit under the cursor");
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
@@ -1280,7 +1295,6 @@ impl App {
                 ui.label("Video starts in TYX mode; T mode is detected automatically. With M, put video code first and audio code second.");
                 ui.monospace("^xp M d3r15&*");
                 ui.label("Edits recompile without resetting VM state. Hide the editor to send typed characters to U. Mouse position and buttons are taken from the video display.");
-                ui.hyperlink_to("Full upstream language manual", "https://github.com/viznut/IBNIZ/blob/master/src/ibniz.txt");
             });
         if exit_requested || ctx.input(|i| i.viewport().close_requested()) {
             self.request_close(ctx);
@@ -2664,6 +2678,25 @@ mod tests {
         }
         assert_eq!((app.vm.input() >> 16) & 255, b'A' as u32);
         assert_ne!(app.vm.input() & 0xffff, 0);
+    }
+
+    #[test]
+    fn help_opens_bundled_manual_without_changing_source_or_vm() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.help = true;
+        let source = app.source.clone();
+        app.vm.memory_mut()[0x123] = 42;
+        click_label(&mut app, &ctx, "Full language manual (bundled, offline)");
+        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        assert!(output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::epaint::Shape::Text(text)
+                if text.galley.text() == include_str!("../../ibniz.txt"))
+        }));
+        assert_eq!(app.source, source);
+        assert!(!app.running);
+        assert_eq!(app.vm.status().frame, 0);
+        assert_eq!(app.vm.memory()[0x123], 42);
     }
 
     #[test]
