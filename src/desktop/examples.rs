@@ -37,6 +37,7 @@ enum Origin {
     Ibnjs,
     Shortest,
     Summerlab,
+    Ttjm,
 }
 
 impl Origin {
@@ -48,6 +49,7 @@ impl Origin {
             Self::Ibnjs => "uones/ibnjs WebGL gallery",
             Self::Shortest => "Shortest IBNIZ programs collection",
             Self::Summerlab => "Summerlab workshop collection",
+            Self::Ttjm => "TTjm IBNIZ collection",
         }
     }
 
@@ -56,7 +58,7 @@ impl Origin {
             Self::Original | Self::Manual => ("Zlib", include_str!("../../LICENSE")),
             Self::Jibniz => ("MIT", include_str!("../../examples/LICENSE-jibniz.txt")),
             Self::Ibnjs => ("WTFPL v2", include_str!("../../examples/LICENSE-ibnjs.txt")),
-            Self::Shortest | Self::Summerlab => (
+            Self::Shortest | Self::Summerlab | Self::Ttjm => (
                 "Not specified",
                 "The bundled source collection does not state an explicit license. Original credits and source references are retained; no additional license is inferred.",
             ),
@@ -86,6 +88,7 @@ impl Example {
             Origin::Ibnjs => "https://github.com/uones/ibnjs/blob/03314c9bdb5379527dd0899f168c5e32bd339d41/index.html".into(),
             Origin::Shortest => "https://github.com/ycollet/IBNIZ-rust/blob/f88d5cf5c7232e436ea48cf9a418d261641aece7/examples/shortest_ibniz_programs.txt".into(),
             Origin::Summerlab => "https://github.com/ycollet/IBNIZ-rust/blob/23d77723d1d983bef64e6df803bcc831d10064d9/examples/summerlab-ibniz-latest.txt".into(),
+            Origin::Ttjm => "https://www.youtube.com/@TTjm-kb6jj".into(),
         }
     }
 
@@ -117,6 +120,23 @@ macro_rules! example {
             contributor: $contributor,
             category: Category::$category,
             origin: Origin::$origin,
+        }
+    };
+}
+
+macro_rules! ttjm_example {
+    ($file:literal, $title:literal, $lines:literal, $category:ident, $contributor:literal) => {
+        Example {
+            filename: concat!($file, ".ib"),
+            title: $title,
+            source: include_str!(concat!("../../examples/", $file, ".ib")),
+            description: concat!(
+                "From ttjm_ibniz.md, lines ", $lines,
+                ". Listed alternatives are separate variants; only explicit M audio sections are shared. May flash rapidly or produce loud audio.",
+            ),
+            contributor: Some($contributor),
+            category: Category::$category,
+            origin: Origin::Ttjm,
         }
     };
 }
@@ -1682,6 +1702,489 @@ pub static EXAMPLES: &[Example] = &[
         Other,
         Summerlab
     ),
+    ttjm_example!(
+        "ttjm-042-random-painting",
+        "TTjm 042: Random painting",
+        "3",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-041-the-metamorphosing-spindle",
+        "TTjm 041: The metamorphosing spindle",
+        "5-6",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-040-checkered-patterns",
+        "TTjm 040: Checkered patterns",
+        "8",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-039-gradation-to-simplify",
+        "TTjm 039: Gradation to simplify",
+        "10",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-038-concentric-circles-ii",
+        "TTjm 038: Concentric circles II",
+        "12",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-037-sliding-chips",
+        "TTjm 037: Sliding chips",
+        "14",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-036-the-lines-which-change-the-color",
+        "TTjm 036: The lines which change the color",
+        "16",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-035-miniature-munching-squares",
+        "TTjm 035: Miniature Munching squares",
+        "18",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-034-needle-mountain",
+        "TTjm 034: Needle Mountain (in Japanese Inferno)",
+        "20",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-033-fragments-of-swirl",
+        "TTjm 033: Fragments of Swirl",
+        "22",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-032-automatic-lines",
+        "TTjm 032: Automatic lines",
+        "24-25",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-031-noize-music-ii",
+        "TTjm 031: Noize music II",
+        "27",
+        Music,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-030-primitive-art-snakes",
+        "TTjm 030: Primitive Art-Snakes",
+        "29",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-square-and-circle-i",
+        "TTjm 029: Square and circle I",
+        "31,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-square-and-circle-ii",
+        "TTjm 029: Square and circle II",
+        "32,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-jewel-i",
+        "TTjm 029: Jewel I",
+        "33,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-jewel-ii",
+        "TTjm 029: Jewel II",
+        "34,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-jewel-iii",
+        "TTjm 029: Jewel III",
+        "35,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-lens-i",
+        "TTjm 029: Lens I",
+        "36,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-lens-ii",
+        "TTjm 029: Lens II",
+        "37,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-gradation-square-i",
+        "TTjm 029: Gradation square I",
+        "38,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-gradation-square-ii",
+        "TTjm 029: Gradation square II",
+        "39,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-gradation-square-iii",
+        "TTjm 029: Gradation square III",
+        "40,43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-029-square-and-circle-variant-11",
+        "TTjm 029: Square and circle, variant 11",
+        "42-43",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-028-multiplex-spiral",
+        "TTjm 028: Multiplex spiral",
+        "45-46",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-027-electric-discharge-and-rotation",
+        "TTjm 027: Electric discharge and rotation",
+        "48",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-026-abstract-painting-ii",
+        "TTjm 026: Abstract painting II",
+        "50",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-1",
+        "TTjm 025: Concentric circles, variant 1",
+        "52,63",
+        Textures,
+        "TTjm; Viznut (original formula)"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-2",
+        "TTjm 025: Concentric circles, variant 2",
+        "54,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-3",
+        "TTjm 025: Concentric circles, variant 3",
+        "55,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-4",
+        "TTjm 025: Concentric circles, variant 4",
+        "56,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-5",
+        "TTjm 025: Concentric circles, variant 5",
+        "57,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-6",
+        "TTjm 025: Concentric circles, variant 6",
+        "58,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-7",
+        "TTjm 025: Concentric circles, variant 7",
+        "59,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-8",
+        "TTjm 025: Concentric circles, variant 8",
+        "60,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-025-concentric-circles-variant-9",
+        "TTjm 025: Concentric circles, variant 9",
+        "61,63",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-024-big-wave",
+        "TTjm 024: Big wave",
+        "65",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-023-japanese-pattern-of-the-textiles-variant-1",
+        "TTjm 023: Japanese pattern of the textiles, variant 1",
+        "67",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-023-japanese-pattern-of-the-textiles-variant-2",
+        "TTjm 023: Japanese pattern of the textiles, variant 2",
+        "68",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-023-japanese-pattern-of-the-textiles-variant-3",
+        "TTjm 023: Japanese pattern of the textiles, variant 3",
+        "69",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-023-japanese-pattern-of-the-textiles-variant-4",
+        "TTjm 023: Japanese pattern of the textiles, variant 4",
+        "70",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-022-video-game",
+        "TTjm 022: Video game",
+        "72",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-021-seaweed-swung-by-the-wave",
+        "TTjm 021: Seaweed swung by the wave",
+        "74",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-019-rondo-of-lines-variant-1",
+        "TTjm 019: Rondo of lines, variant 1",
+        "76",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-019-rondo-of-lines-variant-2",
+        "TTjm 019: Rondo of lines, variant 2 (standalone trailing formula)",
+        "77",
+        Other,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-018-the-flying-triangles-variant-1",
+        "TTjm 018: The flying triangles, variant 1",
+        "79",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-018-the-flying-triangles-variant-2",
+        "TTjm 018: The flying triangles, variant 2",
+        "80",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-018-the-flying-triangles-variant-3",
+        "TTjm 018: The flying triangles, variant 3",
+        "81",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-018-the-flying-triangles-variant-4",
+        "TTjm 018: The flying triangles, variant 4 (standalone trailing formula)",
+        "83",
+        Other,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-017-flags-of-all-nations",
+        "TTjm 017: Flags of all nations",
+        "85",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-016-the-blinking-lines",
+        "TTjm 016: The blinking lines",
+        "87",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-015-mandala",
+        "TTjm 015: Mandala",
+        "89-90",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-014-noise-music",
+        "TTjm 014: Noise music",
+        "92",
+        Music,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-013-sign-curve-variation-variant-1",
+        "TTjm 013: Sign curve variation, variant 1",
+        "94",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-013-sign-curve-variation-variant-2",
+        "TTjm 013: Sign curve variation, variant 2",
+        "95",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-012-ad-lib-performance-i",
+        "TTjm 012: Ad lib performance I",
+        "97",
+        Music,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-011-xor-stripe",
+        "TTjm 011: Xor Stripe",
+        "99",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-010-irradiation-from-a-horizon",
+        "TTjm 010: Irradiation from a horizon",
+        "101",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-009-carpet",
+        "TTjm 009: Carpet",
+        "103",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-008-zigzag-pattern",
+        "TTjm 008: Zigzag pattern",
+        "105",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-007-painting-out-by-munching-squares-variant-1",
+        "TTjm 007: Painting out by Munching squares, variant 1",
+        "107",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-007-painting-out-by-munching-squares-variant-2",
+        "TTjm 007: Painting out by Munching squares, variant 2",
+        "108",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-006-munching-squares-mandala",
+        "TTjm 006: Munching squares Mandala",
+        "110",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-005-black-vortex",
+        "TTjm 005: Black vortex",
+        "112",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-004-the-changing-pinstripes",
+        "TTjm 004: The changing pinstripes",
+        "114",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-003-stripe-and-note-variant-1",
+        "TTjm 003: Stripe and Note, variant 1",
+        "116",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-003-stripe-and-note-variant-2",
+        "TTjm 003: Stripe and Note, variant 2",
+        "117",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-002-abstract-painting-i",
+        "TTjm 002: Abstract painting I",
+        "119",
+        Textures,
+        "TTjm"
+    ),
+    ttjm_example!(
+        "ttjm-001-fractal-flower-garden",
+        "TTjm 001: Fractal flower garden",
+        "121",
+        Fractals,
+        "TTjm"
+    ),
 ];
 
 #[derive(Default)]
@@ -1836,6 +2339,11 @@ mod tests {
             assert!(!example.title.is_empty());
             assert!(!example.description.is_empty());
             let url = example.source_url();
+            if matches!(example.origin, Origin::Ttjm) {
+                assert_eq!(url, "https://www.youtube.com/@TTjm-kb6jj");
+                assert!(!example.origin.license().1.is_empty());
+                continue;
+            }
             assert!(url.starts_with("https://github.com/"));
             let revision = match example.origin {
                 Origin::Original | Origin::Manual => "3ba06ae5f2cf5765c0e06874a093f767054b6359",
@@ -1843,6 +2351,7 @@ mod tests {
                 Origin::Ibnjs => "03314c9bdb5379527dd0899f168c5e32bd339d41",
                 Origin::Shortest => "f88d5cf5c7232e436ea48cf9a418d261641aece7",
                 Origin::Summerlab => "23d77723d1d983bef64e6df803bcc831d10064d9",
+                Origin::Ttjm => unreachable!(),
             };
             assert!(url.contains(revision));
             assert!(!example.origin.license().1.is_empty());
@@ -1894,12 +2403,19 @@ mod tests {
                 .find(|example| example.filename == *filename)
                 .unwrap();
             let original = fs::read_to_string(directory.join(collection)).unwrap();
-            let bounds: Vec<usize> = location
-                .split('-')
-                .map(|value| value.parse().unwrap())
-                .collect();
             let lines: Vec<_> = original.lines().collect();
-            let selected = &lines[bounds[0] - 1..*bounds.last().unwrap()];
+            let selected: Vec<_> = location
+                .split(',')
+                .flat_map(|span| {
+                    let bounds: Vec<usize> = span
+                        .split('-')
+                        .map(|value| value.parse().unwrap())
+                        .collect();
+                    lines[bounds[0] - 1..*bounds.last().unwrap()]
+                        .iter()
+                        .copied()
+                })
+                .collect();
             let source = if selected[0].starts_with("- ") {
                 if let Some((_, variants)) = selected[0].split_once(':') {
                     variants
@@ -1943,10 +2459,69 @@ mod tests {
         }
         let files: BTreeSet<_> = EXAMPLES
             .iter()
-            .filter(|example| matches!(example.origin, Origin::Shortest | Origin::Summerlab))
+            .filter(|example| {
+                matches!(
+                    example.origin,
+                    Origin::Shortest | Origin::Summerlab | Origin::Ttjm
+                )
+            })
             .map(|example| example.filename)
             .collect();
         assert_eq!(extracted, files);
+    }
+
+    #[test]
+    fn ttjm_variants_cover_every_listed_formula_and_are_searchable() {
+        let index = include_str!("../../examples/collection-index.tsv");
+        let mut covered = BTreeSet::new();
+        for row in index.lines().skip(1) {
+            let fields: Vec<_> = row.split('\t').collect();
+            if fields[0] != "ttjm_ibniz.md" || fields[4] == "skipped" {
+                continue;
+            }
+            for span in fields[1].split(',') {
+                let bounds: Vec<usize> = span
+                    .split('-')
+                    .map(|value| value.parse().unwrap())
+                    .collect();
+                covered.extend(bounds[0]..=*bounds.last().unwrap());
+            }
+        }
+        let formulas: BTreeSet<_> = include_str!("../../examples/ttjm_ibniz.md")
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| {
+                !line.trim().is_empty()
+                    && !line.starts_with("From ")
+                    && !line.starts_with("- ")
+                    && line.trim() != "etc."
+            })
+            .map(|(index, _)| index + 1)
+            .collect();
+        assert_eq!(covered, formulas);
+
+        let mut browser = Browser {
+            search: "TTJM".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            browser.visible(),
+            EXAMPLES
+                .iter()
+                .enumerate()
+                .filter(|(_, example)| matches!(example.origin, Origin::Ttjm))
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>(),
+        );
+        browser.search = "ttjm 025 viznut".into();
+        assert_eq!(browser.visible().len(), 1);
+        browser.search = "ttjm".into();
+        browser.category = Some(Category::Music);
+        assert!(!browser.visible().is_empty());
+        assert!(browser.visible().iter().all(|&index| {
+            matches!(EXAMPLES[index].origin, Origin::Ttjm)
+                && EXAMPLES[index].category == Category::Music
+        }));
     }
 
     #[test]

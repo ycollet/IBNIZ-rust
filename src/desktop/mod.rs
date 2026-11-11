@@ -1248,7 +1248,7 @@ impl App {
                 ui.label("Use platform-standard shortcuts for clipboard, selection, undo/redo and word navigation.");
                 ui.label("Syntax colors distinguish numbers, comments, control flow, stack/media instructions and data modes. Compile errors underline the offending character; hover it for details, or read the line/column message below the editor.");
                 ui.label("Loading a file or example and exiting ask before discarding unsaved changes. Cancel to save first. Escape cancels the confirmation. NSM termination always exits without a dialog.");
-                ui.label("Examples: search bundled programs by title, description, contributor or source, and filter by category. Loading resets and pauses playback, asks before discarding edits, and suggests a local copy path outside NSM sessions. Credits, pinned source links and collection licenses are available offline (links require a browser).");
+                ui.label("Examples: search bundled programs by title, description, contributor or source, and filter by category. Loading resets and pauses playback, asks before discarding edits, and suggests a local copy path outside NSM sessions. Credits, source links (pinned where available) and collection licenses are available offline (links require a browser).");
                 ui.label("NSM: launch from a session manager to save source and playback settings in its assigned project. Loading restarts the VM at time zero. File Load is disabled; examples are imported into the session. Stop recording and wait for finalization before saving.");
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.label("Recording: choose an output folder and Start/Stop to save PPM frames and full-scale, unfiltered WAV audio. Run/pause and compile errors pause capture. Optional MP4 uses installed FFmpeg after Stop; original files are retained.");
@@ -2053,35 +2053,44 @@ mod tests {
 
     #[test]
     fn examples_button_search_and_load_work_without_sending_search_text_to_vm() {
-        let ctx = egui::Context::default();
-        let mut app = app();
-        app.editor = false;
-        click_label(&mut app, &ctx, "Examples");
-        assert!(app.example_browser.open);
-        click_label(
-            &mut app,
-            &ctx,
-            "Title, filename, description, contributor or source",
-        );
-        let _ = ctx.run(
-            egui::RawInput {
-                events: vec![egui::Event::Text("plasma.ib".into())],
-                ..Default::default()
-            },
-            |ctx| app.ui(ctx),
-        );
-        assert_eq!((app.vm.input() >> 16) & 255, 0);
-        let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
-        let count = format!("1 / {} examples", examples::EXAMPLES.len());
-        for label in [count.as_str(), "Plasma", "IBNIZ language manual"] {
-            assert!(output.shapes.iter().any(|shape| {
-                matches!(&shape.shape, egui::epaint::Shape::Text(text) if text.galley.text() == label)
-            }), "missing browser content: {label}");
+        for (filename, title, origin) in [
+            ("plasma.ib", "Plasma", "IBNIZ language manual"),
+            (
+                "ttjm-041-the-metamorphosing-spindle.ib",
+                "TTjm 041: The metamorphosing spindle",
+                "TTjm IBNIZ collection",
+            ),
+        ] {
+            let ctx = egui::Context::default();
+            let mut app = app();
+            app.editor = false;
+            click_label(&mut app, &ctx, "Examples");
+            assert!(app.example_browser.open);
+            click_label(
+                &mut app,
+                &ctx,
+                "Title, filename, description, contributor or source",
+            );
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: vec![egui::Event::Text(filename.into())],
+                    ..Default::default()
+                },
+                |ctx| app.ui(ctx),
+            );
+            assert_eq!((app.vm.input() >> 16) & 255, 0);
+            let output = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+            let count = format!("1 / {} examples", examples::EXAMPLES.len());
+            for label in [count.as_str(), title, origin] {
+                assert!(output.shapes.iter().any(|shape| {
+                    matches!(&shape.shape, egui::epaint::Shape::Text(text) if text.galley.text() == label)
+                }), "missing browser content: {label}");
+            }
+            click_label(&mut app, &ctx, "Load example");
+            assert_eq!(app.source, bundled_example(filename).source);
+            assert!(!app.running);
+            assert!(!app.example_browser.open);
         }
-        click_label(&mut app, &ctx, "Load example");
-        assert_eq!(app.source, bundled_example("plasma.ib").source);
-        assert!(!app.running);
-        assert!(!app.example_browser.open);
     }
 
     #[test]

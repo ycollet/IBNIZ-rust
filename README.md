@@ -218,7 +218,7 @@ Click **Examples** to browse all 195 bundled programs, grouped into **Fractals**
 **Textures**, **Music**, **Demos**, and **Other**. Search matches titles,
 filenames, descriptions, contributors and source collections, ignoring case.
 Select an example to see its description, named contributor (where provided),
-pinned source link, collection license (or an explicit unspecified-license notice)
+source link (pinned where available), collection license (or an explicit unspecified-license notice)
 and an optional read-only source preview.
 Collection maintainers are not assumed to have authored individual programs.
 
@@ -491,9 +491,11 @@ This is not a cycle-exact SDL frontend clone:
 - Floating-point transcendental results and YUV-to-RGB rounding may vary
   slightly by platform. No unsafe Rust is used in the VM.
 
-The [examples catalog](examples/README.md) includes the original five upstream
-files plus 33 deduplicated programs from the manual, jibniz and IBNIZ-js
-galleries, with source credits and licenses. `oneliners.ib` is a commented
+The [examples catalog](examples/README.md) includes 264 bundled programs from
+the original examples, manual, jibniz and IBNIZ-js galleries, shortest-program
+and Summerlab collections, and TTjm's collection, with source credits and
+license notices. Search **TTjm** in the GUI's **Examples** browser to find the
+69 added programs and variants. `oneliners.ib` is a commented
 collection; uncomment a line to run it. Its original Latin-1 nonbreaking
 space has been converted to UTF-8.
 

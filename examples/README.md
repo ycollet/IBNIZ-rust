@@ -1,17 +1,17 @@
 # IBNIZ examples
 
-195 `.ib` files: the 38 previously bundled examples plus 157 complete,
+264 `.ib` files: the 38 previously bundled examples plus 157 complete,
 compiler-valid programs extracted from the shortest-program and Summerlab
-collections. Identical extracted programs reuse existing files; distinct
+collections, and 69 TTjm programs/variants. Identical extracted programs reuse existing files; distinct
 variants are kept. Program bodies are unchanged except for removing the
 collection's leading comment markers; new files add attribution comments.
 
 **Warning:** some examples flash rapidly and produce loud noise. Start at
 low volume, or use `--no-audio`.
 
-In the desktop app, click **Examples** to search and filter all 195 embedded
+In the desktop app, click **Examples** to search and filter all 264 embedded
 programs by category. The browser includes descriptions, contributor credits,
-pinned source links and collection license notices (including an explicit
+source links (pinned where available) and collection license notices (including an explicit
 unspecified-license notice where the bundled source provides no license). Loading an example resets
 and pauses playback, asks before discarding edits, and suggests a local
 `<example>-copy.ib` save path. The browser works offline without this directory.
@@ -104,6 +104,15 @@ are retained where provided by the sources.
 - [summerlab-ibniz-latest.txt](summerlab-ibniz-latest.txt), from
   [Labomedia](https://ressources.labomedia.org/ibniz): 117 new programs,
   including the complete multiline sequencers and `trop colle`.
+- [ttjm_ibniz.md](ttjm_ibniz.md), from
+  [TTjm's YouTube channel](https://www.youtube.com/@TTjm-kb6jj): 69 programs
+  and variants from 41 numbered entries (the source does not list 020).
+  Search **TTjm** in the GUI to show this collection. Entries 029 and 025
+  share their explicit `M` audio section across the listed video variants;
+  other alternatives remain separate. No missing `M` or other instructions
+  are inferred: the ambiguous trailing formulas in 019 and 018 are standalone
+  variants. The two `etc.` placeholders are excluded. Viznut's original
+  formula credit in 025 is retained.
 
 [collection-index.tsv](collection-index.tsv) maps every candidate occurrence
 to its `.ib` file or records why it was excluded. `included` means a new
@@ -111,6 +120,8 @@ file, `reused` means a previously bundled program, and `duplicate` points
 to an earlier extraction. Deduplication compares compiled instructions and
 binary data, not names or comments. The bitmap zoomer reuses the original
 `bitmapzoomer.ib`, retaining its complete binary data segment.
+Line references can combine ranges and comma-separated spans, for example
+`31,43` selects a video formula and its shared audio section.
 
 49 Summerlab candidates are excluded: 36 use unsupported characters and
 13 are incomplete sequencers, empty templates, definitions without callers,
@@ -118,7 +129,9 @@ or calls without their definitions. Unsupported lowercase instructions are
 not silently uppercased or rewritten. Compiling successfully does not imply
 that a program can complete video within the default instruction budget.
 
-Each new file records the collection, source lines, pinned repository link,
-and individual credit where supplied. Neither bundled text declares an
+Each new file records the collection, source lines, source link (pinned where
+available), and individual credit where supplied. The TTjm channel link is
+not revision-pinned; the bundled Markdown is preserved as the extraction
+source. None of these three collections declares an
 explicit license; no license is inferred from this project's license or
 from unrelated galleries.
