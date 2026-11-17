@@ -1,15 +1,16 @@
 # IBNIZ examples
 
-264 `.ib` files: the 38 previously bundled examples plus 157 complete,
+284 `.ib` files: the 38 previously bundled examples plus 157 complete,
 compiler-valid programs extracted from the shortest-program and Summerlab
-collections, and 69 TTjm programs/variants. Identical extracted programs reuse existing files; distinct
+collections, 69 TTjm programs/variants, and 20 new expressions from
+emoc/IBNIZ. Identical extracted programs reuse existing files; distinct
 variants are kept. Program bodies are unchanged except for removing the
 collection's leading comment markers; new files add attribution comments.
 
 **Warning:** some examples flash rapidly and produce loud noise. Start at
 low volume, or use `--no-audio`.
 
-In the desktop app, click **Examples** to search and filter all 264 embedded
+In the desktop app, click **Examples** to search and filter all 284 embedded
 programs by category. The browser includes descriptions, contributor credits,
 source links (pinned where available) and collection license notices (including an explicit
 unspecified-license notice where the bundled source provides no license). Loading an example resets
@@ -113,6 +114,16 @@ are retained where provided by the sources.
   are inferred: the ambiguous trailing formulas in 019 and 018 are standalone
   variants. The two `etc.` placeholders are excluded. Viznut's original
   formula credit in 025 is retained.
+- [emoc-ibniz.md](emoc-ibniz.md), preserved unchanged from
+  [emoc/IBNIZ revision `8004c8abecae10bdd0282154f1a16cb5f6b261e7`](https://github.com/emoc/IBNIZ/blob/8004c8abecae10bdd0282154f1a16cb5f6b261e7/README.md):
+  20 new expressions, including the 2020 bytefolk rhythms, melodies and
+  accompaniments. Each listed expression remains separate; no `M` separator
+  or other instruction is inserted. There are also 22 occurrences reusing
+  Summerlab programs and two repeated occurrences within the collection.
+  Search **emoc** to see all 42 distinct runnable expressions, including
+  reused programs with an additional pinned source link and original title.
+  `amateurish disintegration` is excluded because its lowercase `e` is not
+  supported; the source is preserved without silently rewriting it.
 
 [collection-index.tsv](collection-index.tsv) maps every candidate occurrence
 to its `.ib` file or records why it was excluded. `included` means a new
@@ -132,6 +143,6 @@ that a program can complete video within the default instruction budget.
 Each new file records the collection, source lines, source link (pinned where
 available), and individual credit where supplied. The TTjm channel link is
 not revision-pinned; the bundled Markdown is preserved as the extraction
-source. None of these three collections declares an
+source. None of these four collections declares an
 explicit license; no license is inferred from this project's license or
 from unrelated galleries.

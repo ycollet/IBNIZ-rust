@@ -496,11 +496,13 @@ This is not a cycle-exact SDL frontend clone:
 - Floating-point transcendental results and YUV-to-RGB rounding may vary
   slightly by platform. No unsafe Rust is used in the VM.
 
-The [examples catalog](examples/README.md) includes 264 bundled programs from
+The [examples catalog](examples/README.md) includes 284 bundled programs from
 the original examples, manual, jibniz and IBNIZ-js galleries, shortest-program
-and Summerlab collections, and TTjm's collection, with source credits and
+and Summerlab collections, TTjm's collection, and emoc/IBNIZ, with source credits and
 license notices. Search **TTjm** in the GUI's **Examples** browser to find the
-69 added programs and variants. `oneliners.ib` is a commented
+69 added programs and variants. Search **emoc** for that collection's 42
+distinct runnable expressions (20 new, 22 already bundled).
+`oneliners.ib` is a commented
 collection; uncomment a line to run it. Its original Latin-1 nonbreaking
 space has been converted to UTF-8.
 

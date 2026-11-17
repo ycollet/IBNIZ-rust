@@ -2074,6 +2074,7 @@ mod tests {
                 "TTjm 041: The metamorphosing spindle",
                 "TTjm IBNIZ collection",
             ),
+            ("emoc-rhomb.ib", "Rhomb", "emoc/IBNIZ collection"),
         ] {
             let ctx = egui::Context::default();
             let mut app = app();

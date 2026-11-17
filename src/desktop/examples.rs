@@ -38,6 +38,7 @@ enum Origin {
     Shortest,
     Summerlab,
     Ttjm,
+    Emoc,
 }
 
 impl Origin {
@@ -50,6 +51,7 @@ impl Origin {
             Self::Shortest => "Shortest IBNIZ programs collection",
             Self::Summerlab => "Summerlab workshop collection",
             Self::Ttjm => "TTjm IBNIZ collection",
+            Self::Emoc => "emoc/IBNIZ collection",
         }
     }
 
@@ -58,7 +60,7 @@ impl Origin {
             Self::Original | Self::Manual => ("Zlib", include_str!("../../LICENSE")),
             Self::Jibniz => ("MIT", include_str!("../../examples/LICENSE-jibniz.txt")),
             Self::Ibnjs => ("WTFPL v2", include_str!("../../examples/LICENSE-ibnjs.txt")),
-            Self::Shortest | Self::Summerlab | Self::Ttjm => (
+            Self::Shortest | Self::Summerlab | Self::Ttjm | Self::Emoc => (
                 "Not specified",
                 "The bundled source collection does not state an explicit license. Original credits and source references are retained; no additional license is inferred.",
             ),
@@ -89,21 +91,42 @@ impl Example {
             Origin::Shortest => "https://github.com/ycollet/IBNIZ-rust/blob/f88d5cf5c7232e436ea48cf9a418d261641aece7/examples/shortest_ibniz_programs.txt".into(),
             Origin::Summerlab => "https://github.com/ycollet/IBNIZ-rust/blob/23d77723d1d983bef64e6df803bcc831d10064d9/examples/summerlab-ibniz-latest.txt".into(),
             Origin::Ttjm => "https://www.youtube.com/@TTjm-kb6jj".into(),
+            Origin::Emoc => format!(
+                "https://github.com/emoc/IBNIZ/blob/8004c8abecae10bdd0282154f1a16cb5f6b261e7/README.md#L{}",
+                self.emoc_entry().expect("indexed emoc example").0,
+            ),
         }
+    }
+
+    fn emoc_entry(&self) -> Option<(&'static str, &'static str)> {
+        include_str!("../../examples/collection-index.tsv")
+            .lines()
+            .filter(|row| row.starts_with("emoc-ibniz.md\t"))
+            .find_map(|row| {
+                let mut fields = row.split('\t');
+                let _collection = fields.next()?;
+                let lines = fields.next()?;
+                let filename = fields.next()?;
+                let title = fields.next()?;
+                (filename == self.filename).then_some((lines, title))
+            })
     }
 
     fn matches(&self, query: &str, category: Option<Category>) -> bool {
         if category.is_some_and(|category| category != self.category) {
             return false;
         }
+        let emoc = self.emoc_entry();
         let text = format!(
-            "{} {} {} {} {} {}",
+            "{} {} {} {} {} {} {} {}",
             self.filename,
             self.title,
             self.description,
             self.contributor.unwrap_or(""),
             self.category.label(),
             self.origin.label(),
+            emoc.map_or("", |_| Origin::Emoc.label()),
+            emoc.map_or("", |(_, title)| title),
         )
         .to_lowercase();
         query.split_whitespace().all(|word| text.contains(word))
@@ -2185,6 +2208,166 @@ pub static EXAMPLES: &[Example] = &[
         Fractals,
         "TTjm"
     ),
+    example!(
+        "emoc-bytefolk-rhythm-1",
+        "Bytefolk rhythm 1",
+        "2020 bytefolk rhythm for live modification (source line 13). May flash rapidly or produce loud audio.",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-rhythm-2",
+        "Bytefolk rhythm 2",
+        "2020 bytefolk rhythm for live modification (source line 14).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-rhythm-3",
+        "Bytefolk rhythm 3",
+        "2020 bytefolk rhythm for live modification (source line 15).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-rhythm-4",
+        "Bytefolk rhythm 4",
+        "2020 bytefolk rhythm for live modification (source line 16).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-hardcore",
+        "Bytefolk hardcore",
+        "2020 bytefolk rhythm titled hardcore.",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-kick",
+        "Bytefolk kick",
+        "2020 bytefolk kick rhythm.",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-melody-1",
+        "Bytefolk melody 1",
+        "2020 bytefolk melody (source line 22).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-laisser-le-temps",
+        "Bytefolk: laisser le temps",
+        "2020 bytefolk melody; the source advises allowing it time to develop.",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-melody-3",
+        "Bytefolk melody 3",
+        "2020 bytefolk melody (source line 24).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-accompaniment-1",
+        "Bytefolk accompaniment 1",
+        "2020 bytefolk accompaniment (source line 28).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-accompaniment-2",
+        "Bytefolk accompaniment 2",
+        "2020 bytefolk accompaniment (source line 29).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-bytefolk-accompaniment-3",
+        "Bytefolk accompaniment 3",
+        "2020 bytefolk accompaniment (source line 30).",
+        Some("emoc"),
+        Music,
+        Emoc
+    ),
+    example!(
+        "emoc-sursauteur-gamma-mou",
+        "Sursauteur gamma mou",
+        "2015 expression from emoc's audiovisual collection.",
+        Some("emoc"),
+        Other,
+        Emoc
+    ),
+    example!(
+        "emoc-rhomb",
+        "Rhomb",
+        "Audiovisual expression with an explicit M-separated audio section.",
+        Some("emoc"),
+        Textures,
+        Emoc
+    ),
+    example!(
+        "emoc-sleep2",
+        "Sleep2",
+        "Distinct sleep variant with an explicit audio section.",
+        Some("emoc"),
+        Other,
+        Emoc
+    ),
+    example!(
+        "emoc-tartan-mod",
+        "Tartan mod",
+        "Tartan texture variant using the original 8.1001 multiplier.",
+        Some("emoc"),
+        Textures,
+        Emoc
+    ),
+    example!(
+        "emoc-interactif",
+        "Interactif",
+        "Interactive expression using U. Move the mouse or hide the editor to send typed input.",
+        Some("emoc"),
+        Other,
+        Emoc
+    ),
+    example!(
+        "emoc-patchoueurk",
+        "Patchoueurk",
+        "Compact audiovisual expression from emoc's collection.",
+        Some("emoc"),
+        Textures,
+        Emoc
+    ),
+    example!(
+        "emoc-excitable-tartan-corridor",
+        "Excitable tartan corridor",
+        "Tartan texture variant using the original 8.0001 multiplier.",
+        Some("emoc"),
+        Textures,
+        Emoc
+    ),
+    example!(
+        "emoc-radiation-remix",
+        "Radiation (remix)",
+        "Radiation remix; distinct from the Summerlab radiation program.",
+        Some("emoc"),
+        Textures,
+        Emoc
+    ),
 ];
 
 #[derive(Default)]
@@ -2274,6 +2457,17 @@ impl Browser {
                         example.contributor.unwrap_or("not individually credited by this source"),
                     ));
                     ui.hyperlink_to(example.origin.label(), example.source_url());
+                    if let Some((lines, title)) = example.emoc_entry() {
+                        ui.label(format!("emoc collection: {title} (source line {lines})"));
+                        if !matches!(example.origin, Origin::Emoc) {
+                            ui.hyperlink_to(
+                                Origin::Emoc.label(),
+                                format!(
+                                    "https://github.com/emoc/IBNIZ/blob/8004c8abecae10bdd0282154f1a16cb5f6b261e7/README.md#L{lines}"
+                                ),
+                            );
+                        }
+                    }
                     let (license, text) = example.origin.license();
                     ui.collapsing(format!("Collection license: {license}"), |ui| {
                         ui.small("Collection licenses do not imply that maintainers authored every program.");
@@ -2352,6 +2546,7 @@ mod tests {
                 Origin::Shortest => "f88d5cf5c7232e436ea48cf9a418d261641aece7",
                 Origin::Summerlab => "23d77723d1d983bef64e6df803bcc831d10064d9",
                 Origin::Ttjm => unreachable!(),
+                Origin::Emoc => "8004c8abecae10bdd0282154f1a16cb5f6b261e7",
             };
             assert!(url.contains(revision));
             assert!(!example.origin.license().1.is_empty());
@@ -2462,12 +2657,105 @@ mod tests {
             .filter(|example| {
                 matches!(
                     example.origin,
-                    Origin::Shortest | Origin::Summerlab | Origin::Ttjm
+                    Origin::Shortest | Origin::Summerlab | Origin::Ttjm | Origin::Emoc
                 )
             })
             .map(|example| example.filename)
             .collect();
         assert_eq!(extracted, files);
+    }
+
+    #[test]
+    fn emoc_collection_covers_candidates_without_duplicate_programs() {
+        let index = include_str!("../../examples/collection-index.tsv");
+        let rows: Vec<Vec<_>> = index
+            .lines()
+            .filter(|row| row.starts_with("emoc-ibniz.md\t"))
+            .map(|row| row.split('\t').collect())
+            .collect();
+        let source = include_str!("../../examples/emoc-ibniz.md");
+        let mut candidates = BTreeSet::new();
+        for (number, line) in source.lines().enumerate() {
+            let Some(line) = line.strip_prefix('\\') else {
+                continue;
+            };
+            let line = line.trim();
+            if matches!(
+                line,
+                "2020 bytefolk"
+                    | "rythmes, à modifier live"
+                    | "melodies, pas touche"
+                    | "accompagnements"
+                    | "2015"
+                    | "avant ..."
+            ) {
+                continue;
+            }
+            let number = number + 1;
+            candidates.insert(number);
+            let row = rows
+                .iter()
+                .find(|row| row[1].parse::<usize>().unwrap() == number)
+                .unwrap_or_else(|| panic!("missing emoc line {number}"));
+            if row[4] == "skipped" {
+                let error = Program::compile(line.split('\\').next().unwrap()).unwrap_err();
+                assert!(row[5].contains(&error.to_string()), "{}", row[5]);
+            } else {
+                assert!(EXAMPLES.iter().any(|example| example.filename == row[2]));
+            }
+        }
+        assert_eq!(
+            candidates,
+            rows.iter().map(|row| row[1].parse().unwrap()).collect()
+        );
+        for example in EXAMPLES
+            .iter()
+            .filter(|example| matches!(example.origin, Origin::Emoc))
+        {
+            let program = Program::compile(example.source).unwrap();
+            for other in EXAMPLES {
+                if example.filename == other.filename {
+                    continue;
+                }
+                let other_program = Program::compile(other.source).unwrap();
+                assert!(
+                    program.instructions() != other_program.instructions()
+                        || program.data_bits() != other_program.data_bits(),
+                    "{} duplicates {}",
+                    example.filename,
+                    other.filename,
+                );
+            }
+        }
+        let mut browser = Browser {
+            search: "emoc".into(),
+            ..Default::default()
+        };
+        let visible: BTreeSet<_> = browser
+            .visible()
+            .iter()
+            .map(|&index| EXAMPLES[index].filename)
+            .collect();
+        assert_eq!(
+            visible,
+            rows.iter()
+                .filter(|row| row[4] != "skipped")
+                .map(|row| row[2])
+                .collect(),
+        );
+        browser.search = "emoc binary jet".into();
+        assert_eq!(browser.visible().len(), 1);
+        assert_eq!(
+            EXAMPLES[browser.visible()[0]].filename,
+            "summerlab-binary-jet.ib"
+        );
+        browser.search = "emoc bytefolk".into();
+        browser.category = Some(Category::Music);
+        assert!(!browser.visible().is_empty());
+        assert!(browser.visible().iter().all(|&index| {
+            matches!(EXAMPLES[index].origin, Origin::Emoc)
+                && EXAMPLES[index].category == Category::Music
+        }));
     }
 
     #[test]
