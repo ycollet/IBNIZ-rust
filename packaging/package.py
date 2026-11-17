@@ -66,7 +66,7 @@ def linux_files(binary, stage):
     copy(ROOT / "assets/ibniz.desktop", stage / "usr/share/applications/ibniz.desktop")
     copy(ROOT / "assets/ibniz.svg", stage / "usr/share/icons/hicolor/scalable/apps/ibniz.svg")
     copy(ROOT / "assets/ibniz.png", stage / "usr/share/icons/hicolor/256x256/apps/ibniz.png")
-    for name in ["LICENSE", "README.md"]:
+    for name in ["LICENSE", "README.md", "DOCUMENTATION.md"]:
         copy(ROOT / name, stage / "usr/share/doc/ibniz" / name)
 
 
@@ -129,7 +129,7 @@ def dmg(binary, work, output, version):
     contents = app / "Contents"
     copy(binary, contents / "MacOS/ibniz", executable=True)
     resources = contents / "Resources"
-    for name in ["LICENSE", "README.md"]:
+    for name in ["LICENSE", "README.md", "DOCUMENTATION.md"]:
         copy(ROOT / name, resources / name)
     iconset = work / "ibniz.iconset"
     iconset.mkdir()

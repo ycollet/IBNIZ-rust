@@ -26,6 +26,9 @@
         <Component Id="Readme" Guid="*">
           <File Source="$(var.RepoRoot)\README.md" KeyPath="yes" />
         </Component>
+        <Component Id="Documentation" Guid="*">
+          <File Source="$(var.RepoRoot)\DOCUMENTATION.md" KeyPath="yes" />
+        </Component>
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
@@ -41,6 +44,7 @@
       <ComponentRef Id="Application" />
       <ComponentRef Id="License" />
       <ComponentRef Id="Readme" />
+      <ComponentRef Id="Documentation" />
       <ComponentRef Id="StartMenuDirectory" />
     </Feature>
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />

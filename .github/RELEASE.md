@@ -11,7 +11,7 @@ a tag is pushed. Branch pushes alone do not create releases.
 - The tagged commit must contain the installer workflow, the `packaging/`
   files, and all intended application/documentation changes.
 - Use Rust 1.88 or newer and Python 3.11 or newer for local preparation.
-  Desktop builds also need the platform dependencies listed in ../README.md.
+  Desktop builds also need the [platform dependencies](../DOCUMENTATION.md#run).
 
 No signing credentials are required. macOS applications are ad-hoc signed,
 not Developer ID signed or notarized; Windows installers are unsigned.

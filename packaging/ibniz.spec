@@ -26,3 +26,4 @@ cp -a "%{stagedir}/." "%{buildroot}/"
 /usr/share/icons/hicolor/256x256/apps/ibniz.png
 %license /usr/share/doc/ibniz/LICENSE
 %doc /usr/share/doc/ibniz/README.md
+%doc /usr/share/doc/ibniz/DOCUMENTATION.md

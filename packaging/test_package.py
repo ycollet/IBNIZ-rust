@@ -45,6 +45,8 @@ class PackagingTests(unittest.TestCase):
         self.assertTrue((stage / "usr/bin/ibniz").stat().st_mode & 0o111)
         self.assertEqual((stage / "usr/share/doc/ibniz/LICENSE").read_bytes(),
                          (package.ROOT / "LICENSE").read_bytes())
+        self.assertEqual((stage / "usr/share/doc/ibniz/DOCUMENTATION.md").read_bytes(),
+                         (package.ROOT / "DOCUMENTATION.md").read_bytes())
         self.assertIn("Exec=ibniz %f", (stage / "usr/share/applications/ibniz.desktop").read_text())
         self.assertTrue((stage / "usr/share/icons/hicolor/scalable/apps/ibniz.svg").is_file())
 
@@ -74,6 +76,8 @@ class PackagingTests(unittest.TestCase):
         with patch.object(package, "run", side_effect=command):
             package.rpm(self.binary, self.work, output, self.version)
         self.assertEqual(output.read_bytes(), b"test rpm")
+        self.assertIn("%doc /usr/share/doc/ibniz/DOCUMENTATION.md",
+                      (package.ROOT / "packaging/ibniz.spec").read_text())
 
     def test_mac_bundle_metadata_executable_and_applications_link(self):
         with patch.object(package, "run"):
@@ -83,6 +87,8 @@ class PackagingTests(unittest.TestCase):
             metadata = plistlib.load(file)
         self.assertEqual(metadata["CFBundleExecutable"], "ibniz")
         self.assertEqual(metadata["CFBundleShortVersionString"], "0.1.0")
+        self.assertEqual((contents / "Resources/DOCUMENTATION.md").read_bytes(),
+                         (package.ROOT / "DOCUMENTATION.md").read_bytes())
         self.assertTrue((contents / "MacOS/ibniz").stat().st_mode & 0o111)
         self.assertEqual((self.work / "image/Applications").readlink(), Path("/Applications"))
 
@@ -118,7 +124,7 @@ class PackagingTests(unittest.TestCase):
         tree = ET.parse(package.ROOT / "packaging/ibniz.wxs")
         feature = tree.find("w:Package/w:Feature", namespace)
         references = {ref.attrib["Id"] for ref in feature.findall("w:ComponentRef", namespace)}
-        for name in ["LICENSE", "README.md"]:
+        for name in ["LICENSE", "README.md", "DOCUMENTATION.md"]:
             with self.subTest(name=name):
                 source = "$(var.RepoRoot)\\" + name
                 components = [
