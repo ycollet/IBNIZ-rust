@@ -151,8 +151,7 @@ impl Program {
             }
         }
         hints[code.len() - 1] = media;
-        // Side metadata preserves source instruction addresses, including jumps
-        // into the middle of a sequence and single-instruction debugger steps.
+        // Keep fusion hints separate so jumps and debugger steps use original addresses.
         let fusions = code
             .iter()
             .enumerate()
@@ -209,8 +208,9 @@ impl Program {
         self.data.len()
     }
 
-    /// UTF-8 byte range of an instruction. The implicit End has an empty range
-    /// at source EOF; comments and data do not produce instructions.
+    /// An instruction's UTF-8 byte range.
+    ///
+    /// The implicit End has an empty range at EOF. Comments and data are not instructions.
     pub fn source_range(&self, instruction: usize) -> Option<Range<usize>> {
         self.source_ranges.get(instruction).cloned()
     }

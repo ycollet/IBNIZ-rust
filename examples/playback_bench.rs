@@ -418,7 +418,7 @@ impl Runner {
         })
     }
 
-    /// Execute one bounded tick or probe. Returns true when every case is done.
+    /// Execute one bounded tick or probe. Return true when all cases are done.
     fn step(&mut self, mut upload: Option<&mut dyn Upload>) -> Result<bool, Box<dyn Error>> {
         if self.active.is_none() {
             let Some(case) = self.cases.pop_front() else {

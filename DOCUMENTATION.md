@@ -8,26 +8,26 @@ See the [README](README.md) for a project overview and quick start.
 - [Running from source](#run) and [Linux desktop integration](#linux-desktop-integration)
 - [Live editor](#live-editor) and [bundled example browser](#bundled-example-browser)
 - [VM debugger](#vm-debugger) and [playback tuning](#playback-tuning)
+- [Realtime variable FPS](#realtime-variable-fps)
 - [GUI recording](#gui-recording) and [NSM sessions](#nsm-sessions)
 - [Headless rendering](#headless-rendering)
 - [Language, VM library and compatibility](#language-and-vm)
 - [Development](#development) and [playback benchmark](#playback-benchmark)
 - [License](#license)
 
-A standalone Rust implementation of [IBNIZ](https://github.com/viznut/IBNIZ),
-Ville-Matias Heikkila's compact audiovisual virtual machine. Includes a live
-code editor, realtime video and sound, a reusable VM library, and headless
-PPM/WAV rendering. This is an **altered implementation**, not the original C
-distribution.
+IBNIZ Rust implements [IBNIZ](https://github.com/viznut/IBNIZ),
+Ville-Matias Heikkila's compact audiovisual virtual machine. It includes a live
+editor, video and sound, a reusable VM library, and headless PPM/WAV rendering.
+This is an **altered implementation**, not the original C distribution.
 
 ## Screenshot
 
-![screenshot](ibniz-rust.png)
+![IBNIZ Rust live editor](ibniz-rust.png)
 
 ## Installers
 
-Pushed version tags produce installers on the repository's **GitHub Releases**
-page, together with `SHA256SUMS`:
+Download installers and `SHA256SUMS` from **GitHub Releases**. Pushing a version
+tag builds the following packages:
 
 | Platform | Installer | Compatibility |
 |----------|-----------|---------------|
@@ -36,26 +36,33 @@ page, together with `SHA256SUMS`:
 | macOS | `.dmg` containing `IBNIZ Rust.app` | Separate Intel (`x86_64`) and Apple Silicon (`arm64`) builds, macOS 11+ |
 | Windows | `.msi` | x86-64, Windows 10/11 |
 
-Install Linux packages with `sudo apt install ./ibniz-*.deb` or
-`sudo dnf install ./ibniz-*.rpm`. On macOS, open the disk image and drag the app
-into **Applications**. On Windows, run the MSI; it adds a Start menu shortcut,
-an uninstall entry and `ibniz` on `PATH` (open a new terminal after installing).
-The Windows runtime is linked statically; no separate Visual C++ runtime
-installation is required.
+| Platform | Installation |
+|----------|--------------|
+| Debian / Ubuntu | `sudo apt install ./ibniz-*.deb` |
+| Fedora | `sudo dnf install ./ibniz-*.rpm` |
+| macOS | Open the disk image and drag the app into **Applications**. |
+| Windows | Run the MSI, then open a new terminal to use `ibniz` on `PATH`. |
 
-These are **unsigned distribution builds**: the macOS app is only ad-hoc signed,
-not Developer ID signed or notarized, and Windows installers have no publisher
-signature. Gatekeeper/SmartScreen may require explicit approval. Verify the
-download source and checksum before approving installation.
-When launching from Finder, choose writable absolute file/recording paths in
-the editor rather than relying on its working directory.
-FFmpeg is **not bundled**; install it separately for optional MP4 conversion.
+The Windows installer adds Start menu and uninstall entries. Its runtime is
+statically linked; no separate Visual C++ runtime is needed.
+
+**Security:** macOS builds are only ad-hoc signed, not Developer ID signed or
+notarized. Windows builds have no publisher signature. Gatekeeper/SmartScreen
+may require approval. Verify the download source and checksum first.
+
+When launching from Finder, use writable absolute paths for files and
+recordings. Do not rely on the app's working directory.
+
+**FFmpeg is not bundled.** Install it separately for optional MP4 conversion.
 
 ### Publishing a release
 
-`.github/workflows/installers.yml` runs on tag pushes. Update `[package].version`
-in `Cargo.toml`, refresh `Cargo.lock` with Cargo, and commit those changes before
-creating the matching tag:
+The release workflow is `.github/workflows/installers.yml`.
+Before creating a tag:
+
+1. Update `[package].version` in `Cargo.toml`.
+2. Refresh `Cargo.lock` with Cargo.
+3. Commit both files, then create and push the matching tag:
 
 ```sh
 # After committing the version bump and updated Cargo.lock:
@@ -63,19 +70,22 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Tags may use `v0.2.0` or `0.2.0`; their version must match Cargo exactly.
-SemVer prereleases such as `v0.2.0-rc.1` are marked as GitHub prereleases.
-Invalid tags or mismatched versions fail before building installers.
-The common installer version limit is `255.255.65535`. Windows MSI compares only
-the numeric version core, so prereleases/build metadata with the same core can
-replace each other; Debian/RPM prereleases sort before the final release.
+Tags may use `v0.2.0` or `0.2.0`. The version must match Cargo exactly.
+SemVer prereleases, such as `v0.2.0-rc.1`, become GitHub prereleases.
+Invalid tags and version mismatches fail before installer builds begin.
 
-All five builds must succeed before publication. Linux packages and Windows
-MSIs are installed and checked on their runners; macOS disk images are verified
-and their bundled executable checked. Assets are also retained as workflow
-artifacts. A new release stays a draft until all installers and checksums have
-uploaded; rerunning the workflow refreshes its assets. Only the publishing job
-gets release-write permissions. No signing secrets are required.
+The common installer version limit is `255.255.65535`.
+Windows MSI compares only the numeric version core. Prereleases and build
+metadata with the same core can replace each other. Debian/RPM prereleases
+sort before the final release.
+
+All five builds must succeed before publication. Runners install and check
+Linux and Windows packages. They verify macOS disk images and check the bundled
+executable. Assets are also kept as workflow artifacts.
+
+A release stays in draft until all installers and checksums are uploaded.
+Rerunning the workflow refreshes its assets. Only the publishing job has
+release-write permission. No signing secrets are required.
 
 Packaging uses Python 3.11+ and native `dpkg-deb`/`dpkg-shlibdeps`, `rpmbuild`,
 macOS `sips`/`iconutil`/`codesign`/`hdiutil`, and WiX 5.0.2 with its matching UI
@@ -87,9 +97,11 @@ python3 packaging/package.py build --tag v0.1.0 --format deb \
   --binary target/release/ibniz
 ```
 
-Use a matching tag/version and the format appropriate to your host (`deb`,
-`rpm`, `dmg`, or `msi`; Windows uses `ibniz.exe`). macOS takes
-`--arch x86_64` or `--arch arm64`. Installers are written to `target/installers/`.
+Match the tag to the package version. Choose your host's format: `deb`, `rpm`,
+`dmg`, or `msi`. On Windows, use `ibniz.exe`. For macOS, pass `--arch x86_64`
+or `--arch arm64`. Output goes to `target/installers/`.
+
+See the [release procedure](.github/RELEASE.md) for the full checklist.
 
 ## Run
 
@@ -101,26 +113,33 @@ cargo run --release -- examples/ibnizdemo.ib
 cargo run --release -- -c '^xp M d3r15&*'
 ```
 
-The desktop uses egui/OpenGL and CPAL rather than SDL. On macOS, install Xcode
-Command Line Tools (`xcode-select --install`). On Debian/Ubuntu, the desktop
-build needs `build-essential pkg-config libasound2-dev libx11-dev libxi-dev
+The desktop uses egui/OpenGL and CPAL rather than SDL.
+
+| Platform | Build requirements |
+|----------|--------------------|
+| macOS | Xcode Command Line Tools: `xcode-select --install` |
+| Windows | Rust MSVC toolchain and Visual Studio C++ build tools |
+
+On Debian/Ubuntu, install `build-essential pkg-config libasound2-dev libx11-dev libxi-dev
 libxcursor-dev libxrandr-dev libxinerama-dev libgl1-mesa-dev libwayland-dev
-libxkbcommon-dev`. Windows needs the Rust MSVC toolchain and Visual Studio C++
-build tools.
+libxkbcommon-dev`.
 
-Sound starts at 20% volume: IBNIZ programs can produce loud, abrupt noise.
-`--no-audio` disables the output device. Audio initialization failures are
-shown in the application; editing and video remain available.
+**Keep volume low.** Sound starts at 20%, but programs can produce loud,
+abrupt noise. Use `--no-audio` to disable the output device. If audio
+initialization fails, the app shows an error. Editing and video remain usable.
 
-**Audio > DC blocker** toggles a 20 Hz high-pass filter for speaker playback.
-It is **enabled by default** and removes sustained DC offset, with some
-attenuation of very low bass. The filter runs at the output device's sample
-rate and retains its state between audio callbacks, including during silence.
-Uncheck it for unfiltered playback. This setting does not change the VM or
-headless WAV exports (which have a separate `--dc-blocker` flag), and returns
-to enabled when the application restarts outside an NSM session.
-It is not a limiter or a guarantee of speaker or hearing protection; keep the
-volume low.
+### Playback DC blocker
+
+**Audio > DC blocker** enables a 20 Hz high-pass filter. It is **on by default**.
+It removes sustained DC offset and attenuates some very low bass. Uncheck it
+for unfiltered playback.
+
+The filter runs at the output device's sample rate. It keeps its state
+between callbacks, including during silence. It does not change the VM or
+headless WAV exports; exports use the separate `--dc-blocker` flag.
+Outside NSM, restarting the app enables the filter again.
+
+**This is not a limiter or a guarantee of speaker or hearing protection.**
 
 ### Linux desktop integration
 
@@ -162,124 +181,146 @@ rsvg-convert --width 256 --height 256 --output assets/ibniz.png assets/ibniz.svg
 | Examples | Browse, search and load bundled programs |
 | Debugger | Inspect stacks/memory and single-step execution |
 
-The editor supports platform-standard selection, clipboard, word navigation
-and undo/redo. Theme-aware syntax colors distinguish hexadecimal numbers,
-comments, control flow, stack/media instructions and data-section modes.
-Changes recompile immediately **without resetting VM state**.
-Compile errors underline the offending character: hover it for details, or
-read the line/column diagnostic beneath the source. Columns count Unicode
-characters, not UTF-8 bytes. Errors suspend playback until corrected; resetting
-uses the last successfully compiled program. A `T` instruction stops execution;
-use F2 and F1 to start it again.
+### Editing and errors
 
-The status bar shows stack pointers, video mode, time, instruction count and
-audio health. Slow programs are bounded by `--max-instructions` per tick
-(default 4,000,000); budget exhaustion is reported instead of freezing the UI.
-Playback slows down if your machine cannot produce a tick in 1/60 second.
-This is the default **Fixed ticks** mode. For clock-driven playback with
-variable completed-video FPS, see [Realtime variable FPS](#realtime-variable-fps).
-Lower preview refresh rates skip RGB conversion as well as texture uploads on
-ticks that are not displayed, unless recording needs the image. RGB storage is
-reused. VM/audio ticks and full-rate recordings are unaffected; debugger steps
-always refresh the visible image, including direct writes without a page flip.
+Use platform-standard selection, clipboard, word navigation and undo/redo.
+Theme-aware colors distinguish numbers, comments, control flow, stack/media
+instructions and data-section modes.
+
+Changes recompile immediately **without resetting VM state**. Compile errors
+underline the offending character. Hover for details or read the diagnostic
+below the source. Columns count Unicode characters, not UTF-8 bytes.
+
+Errors suspend playback until corrected. Reset uses the last valid program.
+A `T` instruction stops execution; use **F2**, then **F1**, to start again.
+
+### Fixed-tick playback
+
+**Fixed ticks** is the default mode. Each tick has an instruction limit set by
+`--max-instructions` (default 4,000,000). The app reports budget exhaustion
+instead of freezing. Playback slows if a tick takes longer than 1/60 second.
+For clock-driven playback, see [Realtime variable FPS](#realtime-variable-fps).
+
+Lower preview rates skip RGB conversion and texture uploads on undisplayed
+ticks, unless recording needs the image. RGB storage is reused.
+VM/audio ticks and full-rate recordings do not change. Debugger steps always
+refresh the image, including direct writes without a page flip.
 
 **Playback > Instruction budget presets** offers **Default (4M)**,
 **Complex (64M)**, and **Very complex (128M)** instructions per tick. The
 **Instructions/tick** field still accepts custom budgets, including those
 specified with `--max-instructions`. Selecting a preset changes only the
-numeric budget for the next tick: it does not reset memory, restart a partial
-tick, change work slices, or enable automatic budget adjustment. NSM saves
-the numeric budget using the existing session format.
+numeric budget for the next tick. It does not reset memory, restart partial
+work, change work slices, or enable automatic adjustment.
+NSM saves the numeric budget in the existing session format.
 
-Higher budgets can complete more complex video pages but may exceed the
-16.7 ms playback deadline and cause audio gaps. Work continues in bounded,
-1024-instruction chunks within the configured UI work slices. Audio keeps its
-usual quarter-budget reservation; each completed VM tick still supplies 1024
-samples at 61440 Hz and, when recording, one video frame. Slow playback is
-not converted into 60 Hz output by skipping recorded frames or changing the
-audio scheduler. Headless export changes only when explicitly passed a
-different `--max-instructions` value.
+Higher budgets can complete complex pages, but may exceed the 16.7 ms deadline
+and cause audio gaps. Work uses 1024-instruction chunks within the selected
+UI work slices. Audio reserves one quarter of the budget.
 
-**Audio gaps** counts output callbacks without ready audio during playback,
-including recovery buffering, with the total missing audio duration; the
-indicator turns yellow after a gap or queue overflow. Startup, pauses and
-compile-error suspension do not count.
-One interruption may span several callbacks. This detects buffer starvation,
-not clicks generated by the expression itself or every possible device glitch.
-**Late ticks** counts missed 60 Hz deadlines (including UI/scheduling delays);
-**Last tick** shows rendering work time against the 16.7 ms target.
-**Audio budget misses** counts ticks where the VM could not generate all audio
-within its instruction budget, even if the output queue did not run dry.
-**Video budget misses** counts ticks that exhaust the instruction limit before
-a video page flip. Terminated programs do not count as media-budget misses.
-These instruction-budget counters are separate from **Late ticks**: a fast
-tick can reach its instruction limit, and a complete frame can miss its
-wall-clock deadline. **Tick work** shows the actual current/last tick budget
-separately from the budget configured for the next tick.
-Counters persist across edits and pauses; F2 or loading a file resets them.
+Each completed tick supplies 1024 samples at 61440 Hz and, during recording,
+one image. Slow playback does not skip recorded frames or change the audio
+scheduler to manufacture 60 Hz output. Headless export changes only if you
+pass a different `--max-instructions` value.
+
+### Playback diagnostics
+
+The status bar shows stack pointers, video mode, time, instructions and audio
+health. In fixed-tick mode, it reports:
+
+| Indicator | Meaning |
+|-----------|---------|
+| **Audio gaps** | Output callbacks without ready audio, including recovery buffering, and total missing duration. |
+| **Late ticks** | Missed 60 Hz deadlines, including UI and scheduling delays. |
+| **Last tick** | Rendering work time against the 16.7 ms target. |
+| **Audio budget misses** | Ticks that could not generate all audio within the budget. The output queue may still have samples. |
+| **Video budget misses** | Ticks that reached the instruction limit before a page flip. |
+| **Tick work** | Current/last tick instructions and budget, separate from the next tick's configured budget. |
+
+**Audio gaps** turns yellow after a gap or queue overflow. Startup, pauses and
+compile-error suspension do not count. One interruption can span several
+callbacks. The counter detects starvation, not expression-generated clicks
+or every possible device glitch.
+
+Budget misses and deadline misses are separate. A fast tick can exhaust its
+instructions; a complete frame can miss its deadline. Terminated programs
+do not count as media-budget misses.
+
+Counters survive edits and pauses. **F2** or loading a file resets them.
+
+### Input and unsaved changes
 
 Mouse coordinates, buttons and modifiers feed `U`. Hide the editor to send
-typed characters to the VM instead of editing. Files are saved exactly as
-entered; the original editor's `\#file` filename convention is replaced by
-the explicit file path field. File Load, bundled example loading and exit ask
-before discarding unsaved changes. **Cancel** (or Escape) keeps your edits so
-you can save first; **Discard** proceeds without saving. Failed file loads
-preserve the current source and VM. Under NSM, ordinary window exit also
-protects unsaved session settings, but manager-requested termination never
-prompts.
+typed characters to the VM.
+
+Files are saved exactly as entered. Use the file path field instead of the
+original editor's `\#file` convention.
+
+Loading a file or example, or exiting, asks before discarding unsaved changes.
+**Cancel** or **Escape** keeps your edits so you can save first.
+**Discard** proceeds without saving. Failed loads preserve the source and VM.
+Under NSM, ordinary exit also protects unsaved settings. Manager-requested
+termination never prompts.
 
 ### Bundled example browser
 
 Click **Examples** to browse all 284 bundled programs, grouped into **Fractals**,
 **Textures**, **Music**, **Demos**, and **Other**. Search matches titles,
 filenames, descriptions, contributors and source collections, ignoring case.
-Select an example to see its description, named contributor (where provided),
-source link (pinned where available), collection license (or an explicit unspecified-license notice)
-and an optional read-only source preview.
-Collection maintainers are not assumed to have authored individual programs.
+Select an entry to see its description, credits, source link, license notice
+and optional read-only source preview. Links are pinned where available.
+If a source has no stated license, the browser says so. Collection maintainers
+are not assumed to be the programs' authors.
 
 **Load example** replaces the editor contents, resets the VM and audio queue,
-and pauses playback. Press **Run** when ready; some examples flash rapidly or
-produce loud noise. Unsaved edits require confirmation before replacement.
-The suggested save path is `<example>-copy.ib` in the current directory, not the
-bundled source file; change the path before saving if needed. Playback settings
-are retained. An active recording stays armed but capture pauses until Run.
+and pauses playback. Press **Run** when ready. **Some examples flash rapidly
+or produce loud noise.** Unsaved edits require confirmation.
+
+The suggested path is `<example>-copy.ib` in the current directory, not the
+bundled source file. Change it before saving if needed. Playback settings
+are retained. An active recording stays armed, but capture pauses until **Run**.
 `oneliners.ib` is a commented collection: uncomment one program before running.
 
-Programs, metadata and license notices are embedded in the executable, so the
-browser works offline and outside the repository. Only opening external source
-links requires a web browser/network connection.
+Programs, metadata and license notices are embedded in the executable.
+The browser works offline and outside the repository. Only external source
+links need a browser and network connection.
 
 ### VM debugger
 
-Click **Debugger**, pause with **F1**, then use **Step (F3)** or **F3** to
-execute exactly one instruction. A number literal is one instruction, not one
-character; the implicit end-of-program operation also counts as an instruction.
-Steps are silent and refresh the video preview without resetting the VM.
-They use the normal audio/video scheduler, preserving an in-progress tick;
-frame time advances only when a full tick completes or reaches its instruction
-budget. **Run** resumes from the same state. A `T` instruction still terminates
-execution; use **F2** before stepping again.
+1. Click **Debugger**.
+2. Pause with **F1**.
+3. Use **Step (F3)** or **F3** to execute one instruction.
+
+A number literal counts as one instruction, not one per character.
+The implicit end-of-program operation also counts. Steps are silent and
+refresh the preview without resetting the VM. **Run** resumes the same state.
+A `T` instruction terminates execution; use **F2** before stepping again.
+
+Stepping preserves normal audio/video scheduling. In fixed-tick mode, it
+retains partial work and advances time only when a tick completes or reaches
+its budget. In realtime mode, the paused clock stays frozen and stepping
+bypasses page pacing.
 
 The debugger shows the active context, instruction pointer, execution count
 and next instruction. Choose **Active**, **Video** or **Audio** to inspect
-either context's data and return stacks, with their SP/RSP and up to 64 slots
-listed top-first. These are cyclic buffers, not bounded stacks: old slots stay
-visible and the displayed row count is not a logical stack depth. Return-stack
-values are raw addresses/counts, not necessarily fixed-point numbers.
+data and return stacks. Each view shows SP/RSP and up to 64 slots, top-first.
+
+These are **cyclic buffers, not bounded stacks**. Old slots stay visible.
+The row count is not a logical stack depth. Return-stack values are raw
+addresses/counts, not necessarily fixed-point numbers.
 
 The read-only memory viewer covers all **00000-FFFFF physical word addresses**
 in 128-word pages. Enter a hexadecimal address, navigate pages, or jump to the
 selected context's **SP/RSP**. Values appear as raw eight-digit hexadecimal;
 hover for signed-integer and 16.16 interpretations.
 
-While the debugger is open, the editor highlights the **next instruction**.
-An EOF marker represents the implicit end instruction, and the line/column
-label locates it even after comments or a data section. Invalid drafts suppress
-the instruction highlight rather than pointing into the last valid program.
-Stack and memory inspection remain available while running or recording,
-but stepping requires paused playback, valid source and a fully finished
-recording. Debugger window/view choices are not part of NSM session state.
+The editor highlights the **next instruction** while the debugger is open.
+An EOF marker shows the implicit end instruction. Its line/column label works
+even after comments or data. Invalid drafts hide the highlight.
+
+You can inspect stacks and memory while running or recording. Stepping
+requires paused playback, valid source and a fully finished recording.
+NSM does not save debugger window/view choices.
 
 ### Playback tuning
 
@@ -293,103 +334,117 @@ Changing the playback **mode**, unlike tuning, resets and pauses the VM.
 | Work slice: 1-128 ms | VM work per UI update, default 6 ms. Lower values favor editor responsiveness; higher values favor throughput. |
 | Minimum audio buffer: 20-2048 ms | Startup/recovery buffering, default 80 ms. Higher values tolerate jitter at the cost of playback latency. |
 
-If you hear audio dropouts or see **Stream gaps** increasing, try increasing
-**Work slice** and/or **Minimum audio buffer** in the **Playback** menu.
-A larger work slice gives the VM more time to produce audio per UI update,
-while a larger buffer helps absorb scheduling delays. These adjustments can
-reduce or eliminate gaps, at the cost of editor responsiveness and playback
-latency, respectively.
+For dropouts or rising **Audio gaps**, increase **Work slice** or
+**Minimum audio buffer**:
 
-Expensive ticks resume across UI updates rather than blocking for their entire
-instruction budget. Work-slice deadlines are checked every 1,024 instructions;
-finishing a tick also converts its video image, so this is not a strict
-wall-clock cap. The status bar shows in-progress instruction counts.
-Pausing preserves partial work; resetting or loading a program discards it.
-**Last tick** sums actual rendering work across slices, excluding time waiting
-between UI updates.
+| Adjustment | Benefit | Cost |
+|------------|---------|------|
+| Larger work slice | More time to generate audio per UI update | Less responsive editor |
+| Larger minimum buffer | More tolerance for scheduling delays | More playback latency |
 
-Audio resampling happens outside the output-queue lock. Playback waits for real
-samples instead of padding the queue with silence. After starvation, the buffer
-target grows by 20 ms, up to 2048 ms, before resuming; short 5 ms fades soften
-the transition to and from silence. The status bar shows queued audio and the
-current target. Pause/reset clears queued audio and restores the selected
-minimum; changing the minimum sets the target immediately. The queue is capped
-at the larger of 250 ms or the current target plus 50 ms, with discarded samples
-reported by the existing counter.
+Expensive ticks resume across UI updates instead of blocking for their full
+budget. Deadlines are checked every 1,024 instructions. Tick completion can
+also require image conversion, so the work slice is **not a strict
+wall-clock cap**. The status bar shows instructions in progress.
 
-These changes tolerate short scheduling delays; they cannot make a program
-that consistently produces audio too slowly play continuously. Sustained
-overload still slows playback and can cause gaps. Buffering and fades affect
-speaker playback only, not VM audio, headless output, or GUI recordings.
+Pausing preserves partial work. Resetting or loading a program discards it.
+**Last tick** sums rendering work across slices, excluding waits between
+UI updates.
+
+Audio is resampled outside the output-queue lock. Playback waits for real
+samples rather than padding the queue with silence. After starvation, the
+target grows by 20 ms, up to 2048 ms, before playback resumes. Short 5 ms fades
+soften transitions to and from silence.
+
+The status bar shows queued audio and the current target. Pause/reset clears
+the queue and restores the selected minimum. Changing the minimum updates
+the target immediately. The queue cap is the larger of 250 ms or the target
+plus 50 ms. Discarded samples are counted.
+
+Buffering helps with short delays, not sustained overload. A program that
+consistently generates audio too slowly can still cause gaps. Buffering and
+fades affect speakers only, not VM audio, headless output or GUI recordings.
 
 #### Realtime variable FPS
 
 Select **Playback > Realtime variable FPS**, then press **F1** to run.
-Switching between this mode and **Fixed ticks (default)** resets memory,
-stacks, time and diagnostics and pauses playback, while retaining your source
-and other playback settings.
+Switching to or from **Fixed ticks (default)** resets memory, stacks, time and
+diagnostics, then pauses playback. Source and other playback settings remain.
 
-This mode uses an active-playback clock in 1/60-second units. It keeps
-unfinished video computation across clock ticks and UI work slices, rather
-than imposing an instruction budget on each video page. Completed pages are
-paced to at most one per clock tick; expensive pages finish less frequently.
-At a page flip, video time catches up to the current playback clock, so slow
-video does not intentionally put the entire animation into slow motion.
-Preview refresh still limits display updates, not VM execution. The visible
-page is refreshed at that rate even without a flip, preserving direct writes.
+The clock uses 1/60-second units of active playback. Unfinished video work
+continues across clock ticks and UI slices, with no per-page instruction
+budget. At most one page completes per clock tick; expensive pages finish
+less often. At a flip, video time catches up to the clock rather than
+deliberately slowing the whole animation.
+
+Preview refresh still limits display updates, not VM execution. It refreshes
+visible memory even without a flip, preserving direct writes.
 
 The scheduler prioritizes generating audio ahead of the clock using the
-selected/adaptive audio-buffer target, then works on video. Context switches
-still occur at normal VM media boundaries: code stuck inside an inner loop
-can prevent audio progress. After audio falls more than four ticks behind
-the clock, its sample time jumps forward instead of generating an unbounded
-stale backlog. The status bar reports **Skipped audio** samples separately
-from device **Audio gaps**. Sustained overload can still cause audible gaps;
-this is not a guarantee of uninterrupted sound.
+selected/adaptive buffer target, then works on video. Context switches still
+need normal VM media boundaries. **Code stuck in an inner loop can block
+audio progress.**
+
+If audio falls more than four ticks behind, its sample time jumps forward
+instead of generating an unbounded stale backlog. **Skipped audio** reports
+these samples separately from device **Audio gaps**. Sustained overload can
+still interrupt sound.
 
 The configured work-slice limit still applies, checked every 1,024
-instructions, so unfinished or non-producing programs remain interruptible.
-Instruction-budget presets and the custom tick budget apply only to fixed
-ticks and are disabled in realtime mode. Its status shows completed
-pages/second averaged over active playback, page count and skipped audio,
-rather than fixed-tick budget misses. Pauses and compile errors freeze the
-playback clock; live recompilation preserves VM state and unfinished work.
-Debugger stepping remains available while paused and bypasses page pacing.
+instructions, so non-producing programs remain interruptible. Tick-budget
+presets and the custom budget are disabled in this mode.
+
+Status shows average completed pages/second over active playback, page count
+and skipped audio, rather than fixed-tick budget misses. Pauses and compile
+errors freeze the clock. Live recompilation preserves VM state and unfinished
+work. Paused debugger stepping bypasses page pacing.
 
 GUI recording is **fixed-tick only**. Switch modes before starting a take;
 mode changes are blocked while a take is active or finalizing. Headless
-rendering and existing fixed-tick library APIs are unchanged. NSM saves the
-mode and restarts its clock from zero when loading; older sessions default
-to fixed ticks. This is an original-style scheduling option, not a
-cycle-exact recreation of the SDL frontend or its macOS timer workaround.
+rendering and fixed-tick library APIs are unchanged.
+
+NSM saves the mode and restarts its clock from zero on load. Older sessions
+use fixed ticks. This is original-style scheduling, not a cycle-exact
+recreation of the SDL frontend or its macOS timer workaround.
 
 ### GUI recording
 
-Expand **Recording** above the editor, choose an output folder, and click
-**Start recording**. This captures future VM ticks without resetting playback;
-if paused, press **Run** to begin capture. **Stop recording** finalizes the take.
-Each take gets a new subfolder containing `frame-000000.ppm`, etc., and
-`sound.wav` (61,440 Hz, signed 16-bit mono). Audio is **full scale and unfiltered**,
-independent of speaker volume, the playback DC blocker, and audio-device
-availability. Keep playback volume low when opening recordings.
+1. Select **Fixed ticks** mode.
+2. Expand **Recording** and choose an output folder.
+3. Click **Start recording**. If paused, press **Run** to begin capture.
+4. Click **Stop recording** to finalize the take.
+
+Recording captures future ticks without resetting playback. Each take gets
+a new subfolder with `frame-000000.ppm`, etc., and `sound.wav`
+(61,440 Hz, signed 16-bit mono).
+
+**Recorded audio is full scale and unfiltered.** Speaker volume, the playback
+DC blocker and audio-device availability do not affect it.
+Keep playback volume low when opening recordings.
 
 Run/pause and compile errors pause capture without inserting silence or
 duplicate frames. Edits, resets and loaded programs appear in the same take.
-VM termination stops recording; closing the window confirms unsaved changes
-first, then waits for finalization with editing disabled.
-Recordings use the VM's 60 Hz timeline, not wall-clock time: a slow expression
-still exports one video frame per 1,024 audio samples. Instruction-budget
-exhaustion can still produce incomplete video or stale audio, as in headless
+VM termination stops recording. Closing the window confirms unsaved changes,
+then waits for finalization with editing disabled.
+
+Recordings follow the **VM's 60 Hz timeline**, not wall-clock time.
+A slow expression still exports one frame per 1,024 audio samples.
+Budget exhaustion can produce incomplete video or stale audio, as in headless
 exports.
 
-Check **Create MP4** before starting to encode `recording.mp4` after Stop.
-This uses **ffmpeg-sidecar**, as in hydra-rust, with an installed `ffmpeg` on
-`PATH` (or alongside the executable); **nothing is downloaded automatically**.
-FFmpeg must support `libx264` and AAC. MP4 uses H.264/yuv420p video at 60 fps
-and AAC audio resampled to 48 kHz. PPM/WAV originals are always retained,
-including when conversion fails; existing recordings are never overwritten.
-Encoder diagnostics are retained in the take's `ffmpeg.log`.
+#### MP4 conversion
+
+Check **Create MP4** before starting. After Stop, **ffmpeg-sidecar** encodes
+`recording.mp4`, as in hydra-rust. It uses `ffmpeg` on `PATH` or alongside
+the executable. **Nothing is downloaded automatically.**
+
+FFmpeg must support `libx264` and AAC. Output is H.264/yuv420p at 60 fps with
+AAC audio resampled to 48 kHz. PPM/WAV originals remain, even on failure.
+Existing recordings are never overwritten. Encoder diagnostics go to the
+take's `ffmpeg.log`.
 An empty take creates only an empty WAV and skips MP4 conversion.
+
+#### Recording limits and errors
 
 Disk writes and encoding run off the UI thread with a bounded eight-frame
 queue. If the disk cannot keep up, recording stops with a visible error rather
@@ -400,38 +455,49 @@ to about 9.7 hours by the standard WAV file-size limit.
 
 ### NSM sessions
 
-The desktop supports [New/Non Session Manager (NSM)](https://new-session-manager.jackaudio.org/).
-Install the executable on `PATH` (see Linux desktop integration above), then add
-`ibniz` as a client in your session manager. NSM supplies `NSM_URL`; no extra
-application flag is needed. Without it, standalone behavior is unchanged.
-Invalid or unreachable managers produce a visible warning and fall back to
+The desktop supports [New/Non Session Manager (NSM)](https://new-session-manager.jackaudio.org/):
+
+1. Install the executable on `PATH`; see [Linux desktop integration](#linux-desktop-integration).
+2. Add `ibniz` as a client in the session manager.
+
+NSM supplies `NSM_URL`; no app flag is needed. Without it, the app runs
+standalone. Invalid or unreachable managers show a warning and fall back to
 standalone mode. Headless exports ignore `NSM_URL`.
 
-Each client uses the project directory assigned by NSM, containing a
-self-contained `state.json`. Session saves preserve editor source (including
-invalid drafts), the last valid program, run/pause and editor visibility,
-volume, DC blocker, instruction budget, work slice, preview refresh, minimum
-audio buffer and playback mode. Loading starts the VM at **time zero** with memory/stacks and
-diagnostic counters reset, rather than resuming an execution snapshot.
-Invalid drafts remain visible and suspend playback until corrected.
+#### Saved state
 
-NSM Save and **Ctrl/Cmd+S** write the session state atomically. The ordinary file
-path is locked and file Load is disabled; bundled examples instead offer
-**Import example**, keeping saves inside the session. Source and playback-setting
-changes are reported to the manager as dirty/clean. Recordings default to
-`<project>/recordings`; explicitly chosen external recording folders are exports.
-Stop recording and wait for finalization/conversion before saving the session:
-while a take is active or finishing, Save returns an explicit “not now” error.
+Each client uses the project directory assigned by NSM, containing a
+self-contained `state.json`. It preserves:
+
+- Editor source, including invalid drafts, and the last valid program.
+- Run/pause, editor visibility, volume and DC blocker.
+- Instruction budget, work slice, preview refresh, minimum audio buffer and
+  playback mode.
+
+Loading starts at **time zero** with memory, stacks and diagnostics reset.
+It does not restore an execution snapshot. Invalid drafts stay visible and
+suspend playback until corrected.
+
+NSM Save and **Ctrl/Cmd+S** write state atomically. The ordinary file path is
+locked and file Load is disabled. Bundled examples offer **Import example**
+to keep saves in the session. The manager receives dirty/clean reports for
+source and playback-setting changes.
+
+Recordings default to `<project>/recordings`. Explicitly chosen external
+folders are exports. **Stop recording and wait for finalization/conversion
+before saving.** Until then, Save returns an explicit “not now” error.
+
+#### Shutdown and limitations
 
 NSM termination (`SIGTERM` on Unix) exits without confirmation or an implicit
 save, even with unsaved edits. Queued recording frames are drained and WAV
 headers finalized; optional MP4 conversion is skipped or cancelled so it does
 not delay session shutdown. PPM/WAV originals remain available.
 
-The client supports OSC over **UDP** and dirty-state reporting. Live session
-switching and optional-GUI hiding are not advertised: the manager must restart
-the client for another project. Audio remains CPAL-based; NSM support does not
-add JACK ports or connection restoration.
+The client supports OSC over **UDP** and dirty-state reporting.
+Live session switching and optional-GUI hiding are not advertised.
+The manager must restart the client for another project. Audio uses CPAL;
+NSM does not add JACK ports or connection restoration.
 
 ## Headless rendering
 
@@ -443,13 +509,16 @@ cargo run --release --no-default-features -- \
   --output output --wav output/sound.wav
 ```
 
-This writes `frame-000000.ppm`, etc., and an optional signed 16-bit mono WAV
-at 61,440 Hz. Each tick represents 1/60 second and contains 1,024 samples.
-Existing numbered output files are overwritten. Exported sound is full scale,
-independent of the desktop volume control.
-WAV audio is streamed as each tick is rendered, so recording memory does not
-grow with its duration. Recordings exceeding the standard WAV size limit
-are rejected before rendering starts.
+Output is `frame-000000.ppm`, etc., plus an optional signed 16-bit mono WAV at
+61,440 Hz. Each tick is 1/60 second with 1,024 samples.
+**Existing numbered files are overwritten. Audio is full scale**, independent
+of desktop volume.
+
+WAV samples stream as each tick renders, so recording memory does not grow
+with duration. Exports above the standard WAV size limit are rejected before
+rendering.
+
+### Filter exported audio
 
 Add `--dc-blocker` alongside `--headless --wav FILE` to apply the same 20 Hz
 high-pass filter to exported audio:
@@ -460,13 +529,14 @@ cargo run --release --no-default-features -- \
   --output output --wav output/sound.wav --dc-blocker
 ```
 
-Unlike desktop playback, headless filtering is **off by default** so existing
-exports remain unchanged. The filter runs at 61,440 Hz, retains its state
-across ticks, and clips filtered peaks to the signed 16-bit range. It does
-not change the VM or exported video, and does not increase recording memory
+Headless filtering is **off by default**, unlike desktop playback.
+It runs at 61,440 Hz, keeps state across ticks and clips peaks to signed 16-bit
+range. It does not change the VM or video, or make recording memory grow
 with duration.
 
-With FFmpeg installed:
+### Convert with FFmpeg
+
+Install FFmpeg, then run:
 
 ```sh
 ffmpeg -framerate 60 -i output/frame-%06d.ppm -i output/sound.wav \
@@ -491,13 +561,16 @@ d3r15&*             "42 melody", in the audio context
 The compiler/interpreter implements the full documented instruction set,
 including `z`, loops, subroutines, return stacks, arbitrary memory access,
 user input, data segments, and automatic TYX/T video mode detection.
-See the bundled [original language manual](ibniz.txt) for the complete
-instruction reference. It is also embedded in **Help (F12)** under
-**Full language manual (bundled, offline)**, with selectable, read-only text;
-no browser or network connection is needed. The file is preserved unchanged
-from [upstream revision `3ba06ae5f2cf5765c0e06874a093f767054b6359`](https://github.com/viznut/IBNIZ/blob/3ba06ae5f2cf5765c0e06874a093f767054b6359/src/ibniz.txt)
-under the [Zlib license](LICENSE). Its build and interface instructions refer
-to the original C implementation, not this Rust frontend.
+The [original language manual](ibniz.txt) is the complete instruction reference.
+It is also in **Help (F12) > Full language manual (bundled, offline)**.
+The text is selectable and read-only; no browser or network is needed.
+
+The manual is unchanged from
+[upstream revision `3ba06ae5f2cf5765c0e06874a093f767054b6359`](https://github.com/viznut/IBNIZ/blob/3ba06ae5f2cf5765c0e06874a093f767054b6359/src/ibniz.txt)
+under the [Zlib license](LICENSE). Its build and interface instructions
+describe the original C version, not this frontend.
+
+### Library API
 
 ```rust
 use ibniz::{Program, Vm};
@@ -509,31 +582,36 @@ assert_eq!(frame.rgb.len(), 256 * 256 * 3);
 assert_eq!(frame.audio.len(), 1024);
 ```
 
-`Vm::step` executes individual instructions. `memory_mut`, `set_input`,
-`replace_program`, `reset` and `status` support embedding and debugging.
-`begin_frame` / `FrameRender::advance_tick` complete sliced ticks without RGB
-conversion; `Vm::rgb_into(&mut Vec<u8>)` converts the visible page into reusable
-storage when needed. Convert before executing more VM instructions to capture
-that tick's image. `FrameTick::with_rgb` attaches the converted page for callers
-that need a full `Frame`. Existing `render_frame`, profiled rendering, `advance`
-and `rgb` still produce complete RGB images.
+| API | Use |
+|-----|-----|
+| `Vm::step` | Execute one instruction. |
+| `memory_mut`, `set_input`, `replace_program`, `reset`, `status` | Embed and debug the VM. |
+| `begin_frame` / `FrameRender::advance_tick` | Render sliced ticks without RGB conversion. |
+| `Vm::rgb_into(&mut Vec<u8>)` | Convert visible memory into reusable RGB storage. |
+| `FrameTick::with_rgb` | Attach converted RGB to create a full `Frame`. |
 
-`RealtimeRender::new(&vm)` provides the separate realtime scheduler. Start
-from a reset VM and supply a monotonic 60 Hz playback-clock value to `advance`,
-along with an audio lookahead in samples and an instruction limit per work
-batch. Returned `RealtimeBatch` values contain available audio, page-completion
-events and skipped-audio counts, not fixed-duration frames. Do not interleave
-this scheduler with fixed-tick renderers on the same VM.
+**Convert before executing more instructions** to capture the completed tick's
+image. Existing `render_frame`, profiled rendering, `advance` and `rgb` APIs
+still produce full RGB images.
+
+`RealtimeRender::new(&vm)` creates a separate realtime scheduler. Start from
+a reset VM. Pass `advance` a monotonic 60 Hz playback clock, audio lookahead
+in samples, and an instruction limit per batch.
+
+`RealtimeBatch` returns available audio, page-completion events and skipped
+samples, not fixed-duration frames. **Do not interleave realtime and fixed-tick
+renderers on the same VM.**
 
 Rendering uses compiler-side fusion hints for selected arithmetic, literal
 memory accesses, and stack picks. Original instruction addresses, logical
 instruction counts, popped-slot memory writes, and single-step behavior are
 preserved. Fusion never exceeds a slice or tick instruction budget.
-See `TODO.md` for measured gains and known workload-dependent tradeoffs.
+See [TODO.md](TODO.md#3-optimize-profiled-vm-hot-paths) for measured gains and
+workload-dependent tradeoffs.
 
-`export::WavWriter` accepts a total sample count and writes successive chunks
-without requiring a seekable output. Wrap file outputs in `std::io::BufWriter`;
-call `finish` to verify the count and flush buffered output.
+`export::WavWriter` streams a known sample count without requiring seekable
+output. Wrap files in `std::io::BufWriter`. Call `finish` to verify the count
+and flush buffered output.
 
 ### Compatibility
 
@@ -544,10 +622,11 @@ the complete memory hash.
 
 This is not a cycle-exact SDL frontend clone:
 
-- Scheduling uses deterministic 60 Hz ticks with bounded work; desktop sound
-  is resampled to the output device's rate. Native code generation, legacy
-  keystroke recording/playback, and the original `-M` stream format are not
-  implemented. Use PPM/WAV exports instead.
+- Default playback and headless exports use deterministic 60 Hz ticks with
+  bounded work. The desktop also offers [realtime variable FPS](#realtime-variable-fps).
+  Sound is resampled to the output device's rate.
+- Native code generation, legacy keystroke recording/playback and the
+  original `-M` stream format are not implemented. Use PPM/WAV exports instead.
 - Automatic audio/video role reversal is not implemented; with `M`, put
   video code first and audio code second.
 - Flat conditional/subroutine skip points and the C interpreter's actual
@@ -561,15 +640,16 @@ This is not a cycle-exact SDL frontend clone:
 - Floating-point transcendental results and YUV-to-RGB rounding may vary
   slightly by platform. No unsafe Rust is used in the VM.
 
-The [examples catalog](examples/README.md) includes 284 bundled programs from
-the original examples, manual, jibniz and IBNIZ-js galleries, shortest-program
-and Summerlab collections, TTjm's collection, and emoc/IBNIZ, with source credits and
-license notices. Search **TTjm** in the GUI's **Examples** browser to find the
-69 added programs and variants. Search **emoc** for that collection's 42
-distinct runnable expressions (20 new, 22 already bundled).
-`oneliners.ib` is a commented
-collection; uncomment a line to run it. Its original Latin-1 nonbreaking
-space has been converted to UTF-8.
+The [examples catalog](examples/README.md) lists all 284 programs, credits and
+license notices. Sources include the original examples and manual, jibniz,
+IBNIZ-js, shortest-program and Summerlab collections, TTjm and emoc/IBNIZ.
+
+In the GUI browser, search **TTjm** for its 69 programs and variants.
+Search **emoc** for its 42 distinct runnable expressions: 20 new and 22 already
+bundled.
+
+`oneliners.ib` is a commented collection. Uncomment a line to run it.
+Its original Latin-1 nonbreaking space has been converted to UTF-8.
 
 ## Development
 
@@ -595,50 +675,66 @@ exercise the editor and rendering UI without opening a native window.
 cargo run --release --locked --no-default-features --example playback_bench
 ```
 
-This discovers every `.ib` file in the source tree's `examples` directory,
-including empty/comment-only programs, in filename order. Use
-`--examples-dir PATH` to benchmark another directory. Compilation and file I/O
-are outside the timings. Each case uses a persistent VM for 60 warmup ticks
-and 300 measured ticks, with 4,000,000 instructions per tick by default.
+The benchmark discovers every `.ib` file in `examples`, in filename order.
+It includes empty and comment-only programs. Use `--examples-dir PATH` for
+another directory. Compilation and file I/O are not timed.
 
-CSV goes to stdout; configuration, package version, OS/architecture and build
-mode go to stderr. Record `git rev-parse HEAD`, `rustc -Vv`, CPU model, and power
-settings alongside results. Compare repeated release runs on an otherwise idle
-machine, using the same options. Timings are diagnostics, not portable pass/fail
-thresholds.
+Each case uses a persistent VM. Defaults are 60 warmup ticks, 300 measured
+ticks and 4,000,000 instructions per tick.
+
+CSV goes to stdout. Configuration, package version, OS/architecture and build
+mode go to stderr. Also record `git rev-parse HEAD`, `rustc -Vv`, CPU model and
+power settings. Repeat release runs on an otherwise idle machine with the
+same options. **Timings are diagnostics, not portable pass/fail thresholds.**
+
+#### Select programs and input
 
 `--suite stress` selects the eight budget-limited examples listed in `TODO.md`.
 `--suite controls` selects TV noise, plasma, XOR texture, and the multiplication
 texture zoomer. `--filter TEXT` further filters filenames.
 
-`--input all` (default) runs default input for every program and adds center
-and sweep scenarios for programs containing the `U` instruction. Center sets
-mouse coordinates to (128, 128); sweep deterministically traverses coordinates
-0..255, reversing X every 256 ticks and toggling the mouse-button bit every
-60 ticks. The sequence starts at tick zero, including warmup. Select just one
-scenario with `--input default`, `center`, or `sweep`.
+`--input all` is the default. It runs default input for every program, plus
+center and sweep scenarios for programs using `U`:
 
-The CSV separates median/p95/worst **execution** time (VM audio/video execution
-and audio sample extraction) from **RGB conversion** time. Total tick timings
-include both and instrumentation overhead. It also reports late ticks
-(over 16.7 ms), incomplete audio/video ticks, instruction-budget hits, stopped
-ticks, and mean instructions. Stopped programs are not counted as media misses;
-disabled audio is not counted as an audio miss. Audio generation is limited to
-one quarter of the tick budget, so audio misses need not coincide with total
-budget exhaustion. These are not audio-device xrun counts.
+| Scenario | Input |
+|----------|-------|
+| Center | Mouse at (128, 128) |
+| Sweep | Coordinates 0..255, X reversed every 256 ticks, mouse-button bit toggled every 60 ticks |
 
-A separate VM starts from reset for `--page-frames N` probe ticks (default: 3),
-using `--page-cap N` instructions per tick (default: 128,000,000). These probes
-do not affect the timed run. They report completed pages, capped and stopped
-ticks, and mean/max video-phase instructions per completed page. Video-phase
-work carries over across capped ticks; unfinished work is reported separately
-and excluded from completed-page statistics. Counts exclude the scheduler's
-audio phase, including video setup it may execute, and therefore measure
-video-phase work rather than all instructions executed in the video context.
-The cap applies to the whole probe tick, with the usual audio reservation.
-There is no unbounded wait for a non-producing program. High-cap probes advance
-VM time differently from low-budget playback; they are a separate workload, not
-an estimate of missing instructions in the timed run.
+The deterministic sequence starts at tick zero, including warmup.
+Choose one scenario with `--input default`, `center`, or `sweep`.
+
+#### Read timing and completion metrics
+
+The CSV separates median/p95/worst **execution** time from **RGB conversion**.
+Execution includes VM audio/video work and audio sample extraction.
+Total tick time includes both stages and instrumentation overhead.
+
+It also reports late ticks (over 16.7 ms), incomplete audio/video ticks,
+budget hits, stopped ticks and mean instructions. Stopped programs are not
+media misses. Disabled audio is not an audio miss.
+
+Audio has one quarter of the tick budget. It can exhaust that reservation
+without using the full tick budget. These misses are **not device xruns**.
+
+#### Probe video-page completion
+
+A separate VM starts from reset for `--page-frames N` ticks (default: 3).
+`--page-cap N` limits each probe tick (default: 128,000,000 instructions).
+Probes do not affect the timed run. They report completed pages, capped and
+stopped ticks, and mean/max video-phase instructions per completed page.
+
+Work carries across capped ticks. Unfinished work is reported separately and
+excluded from completed-page statistics. Counts exclude the audio scheduling
+phase, including video setup it may execute. They measure video-phase work,
+not every instruction in the video context.
+
+The cap covers the whole tick, with the usual audio reservation. Non-producing
+programs cannot wait indefinitely. High-cap probes advance time differently
+from low-budget playback. They are **a separate workload**, not an estimate
+of missing instructions in the timed run.
+
+#### Repeat the audit
 
 For the original 30-second audit configuration, or a longer stress run:
 
@@ -656,23 +752,25 @@ cargo run --release --locked --example playback_bench -- \
   --desktop --suite controls > desktop-baseline.csv 2> desktop-baseline.log
 ```
 
-This opens a progress window with no audio playback or flashing video. It
-measures RGB-to-egui/RGBA preparation and a full 256x256 RGBA OpenGL texture
-upload separately, synchronizing with `glFinish` to measure completion rather
-than just queueing commands. GL vendor, renderer and version are logged.
-This is an isolated native upload benchmark, not an instrumented editor paint
-or an asynchronous production GPU trace. Total native tick time also includes
-upload preparation and synchronization; it excludes UI layout, window
-presentation and vsync. Closing the window early fails the run.
+This opens a progress window without audio or flashing video. It measures
+RGB-to-egui/RGBA preparation separately from a full 256x256 RGBA OpenGL upload.
+`glFinish` measures completion, not just command queueing. GL vendor, renderer
+and version are logged.
+
+This is an isolated upload benchmark, not an editor paint measurement or
+asynchronous production GPU trace. Total tick time includes preparation and
+synchronization, but excludes layout, window presentation and vsync.
+Closing the window early fails the run.
 
 Headless runs leave texture-preparation/upload CSV fields empty (not zero);
 `mode` and `upload_samples` identify whether uploads were measured. Neither mode
 includes device callbacks, audio resampling, or recording I/O.
 
-Use `--max-instructions N` to compare budgets without confusing instruction
-limits with wall-clock deadlines. Increasing the budget does not guarantee
-60 Hz playback. For example, compare the desktop presets with three separate
-stress-suite runs:
+#### Compare instruction budgets
+
+Use `--max-instructions N` to compare budgets, not wall-clock deadlines.
+**Increasing the budget does not guarantee 60 Hz playback.**
+Compare the desktop presets with three separate stress-suite runs:
 
 ```sh
 for budget in 4000000 64000000 128000000; do
@@ -683,11 +781,13 @@ for budget in 4000000 64000000 128000000; do
 done
 ```
 
-The small page-probe cap keeps this comparison focused on measured ticks;
-page probes here are not page-completion estimates. Compare `video_misses`
-and `audio_misses` independently from `late_ticks` and tick-time percentiles.
-These headless deadlines exclude desktop scheduling and audio-device behavior.
-See `TODO.md` for measured preset tradeoffs. Use `--help` for all options.
+The small probe cap keeps this comparison focused on measured ticks.
+These probes are not page-completion estimates.
+
+Compare `video_misses` and `audio_misses` separately from `late_ticks` and
+tick-time percentiles. Headless deadlines exclude desktop scheduling and
+audio-device behavior. See [TODO.md](TODO.md#4-tune-instruction-budgets-separately)
+for measured tradeoffs. Use `--help` for all options.
 
 ## License
 

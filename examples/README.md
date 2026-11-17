@@ -1,21 +1,31 @@
 # IBNIZ examples
 
-284 `.ib` files: the 38 previously bundled examples plus 157 complete,
-compiler-valid programs extracted from the shortest-program and Summerlab
-collections, 69 TTjm programs/variants, and 20 new expressions from
-emoc/IBNIZ. Identical extracted programs reuse existing files; distinct
-variants are kept. Program bodies are unchanged except for removing the
-collection's leading comment markers; new files add attribution comments.
+The catalog contains **284 `.ib` files**:
+
+| Source | Files added |
+|--------|-------------|
+| Previously bundled examples | 38 |
+| Shortest-program and Summerlab collections | 157 |
+| TTjm programs and variants | 69 |
+| emoc/IBNIZ expressions | 20 |
+
+Identical extracted programs reuse existing files. Distinct variants are
+kept. Extracted bodies retain their instructions; only leading collection
+comment markers are removed. New files add attribution comments.
 
 **Warning:** some examples flash rapidly and produce loud noise. Start at
 low volume, or use `--no-audio`.
 
-In the desktop app, click **Examples** to search and filter all 284 embedded
-programs by category. The browser includes descriptions, contributor credits,
-source links (pinned where available) and collection license notices (including an explicit
-unspecified-license notice where the bundled source provides no license). Loading an example resets
-and pauses playback, asks before discarding edits, and suggests a local
-`<example>-copy.ib` save path. The browser works offline without this directory.
+## Run an example
+
+Click **Examples** in the desktop app to search all 284 programs or filter by
+category. Each entry shows a description, credits, source links and license
+notices. Source links are pinned where possible. If a source has no stated
+license, the browser says so.
+
+Loading an example resets and pauses playback. The app asks before discarding
+edits and suggests `<example>-copy.ib` as a local save path. The browser works
+offline, even without this directory.
 
 From the project root:
 
@@ -27,9 +37,9 @@ cargo run --release --no-default-features -- \
 ```
 
 Move the mouse over the video to explore `interactive-julia-sets.ib`.
-The browser galleries use somewhat different VM implementations; rendering,
-timing and audio can differ. Complex fractals may exhaust the default
-instruction budget; raise `--max-instructions` if needed.
+The upstream browser galleries use different VM implementations. Rendering,
+timing and audio may differ. Complex fractals can exhaust the default
+instruction budget. Raise `--max-instructions` if needed.
 
 ## Sources and licenses
 
@@ -39,9 +49,9 @@ instruction budget; raise `--max-instructions` if needed.
 | [jibniz gallery][jibniz] ([live gallery](https://flupe.github.io/jibniz/)) | `009c312c06938cf30d3b1b50572c51989f0f80ee` | [MIT](LICENSE-jibniz.txt), copyright 2021 flupe; named contributors credited below |
 | [IBNIZ-js WebGL gallery][ibnjs] ([live gallery](https://uones.github.io/ibnjs/index.html)) | `03314c9bdb5379527dd0899f168c5e32bd339d41` | [WTFPL v2](LICENSE-ibnjs.txt); named contributors credited below |
 
-These are the source collections' licenses, not a claim that the collection
+These licenses describe the source collections. They do not imply that
 maintainers authored every program. Original titles and contributor names
-are retained where provided by the sources.
+are retained where supplied.
 
 ## Original files
 
@@ -98,51 +108,76 @@ are retained where provided by the sources.
 
 ## Extracted source collections
 
-- [shortest_ibniz_programs.txt](shortest_ibniz_programs.txt), from this
-  [archived list](https://web.archive.org/web/20190915062423/http://low.fi/~viznut/shortest_ibniz_programs.txt):
-  40 new programs. Listed alternatives are separate programs; the empty
-  gradient/sawtooth program is preserved too.
-- [summerlab-ibniz-latest.txt](summerlab-ibniz-latest.txt), from
-  [Labomedia](https://ressources.labomedia.org/ibniz): 117 new programs,
-  including the complete multiline sequencers and `trop colle`.
-- [ttjm_ibniz.md](ttjm_ibniz.md), from
-  [TTjm's YouTube channel](https://www.youtube.com/@TTjm-kb6jj): 69 programs
-  and variants from 41 numbered entries (the source does not list 020).
-  Search **TTjm** in the GUI to show this collection. Entries 029 and 025
-  share their explicit `M` audio section across the listed video variants;
-  other alternatives remain separate. No missing `M` or other instructions
-  are inferred: the ambiguous trailing formulas in 019 and 018 are standalone
-  variants. The two `etc.` placeholders are excluded. Viznut's original
-  formula credit in 025 is retained.
-- [emoc-ibniz.md](emoc-ibniz.md), preserved unchanged from
-  [emoc/IBNIZ revision `8004c8abecae10bdd0282154f1a16cb5f6b261e7`](https://github.com/emoc/IBNIZ/blob/8004c8abecae10bdd0282154f1a16cb5f6b261e7/README.md):
-  20 new expressions, including the 2020 bytefolk rhythms, melodies and
-  accompaniments. Each listed expression remains separate; no `M` separator
-  or other instruction is inserted. There are also 22 occurrences reusing
-  Summerlab programs and two repeated occurrences within the collection.
-  Search **emoc** to see all 42 distinct runnable expressions, including
-  reused programs with an additional pinned source link and original title.
-  `amateurish disintegration` is excluded because its lowercase `e` is not
-  supported; the source is preserved without silently rewriting it.
+### Shortest programs
+
+[shortest_ibniz_programs.txt](shortest_ibniz_programs.txt) adds 40 programs from
+this [archived list](https://web.archive.org/web/20190915062423/http://low.fi/~viznut/shortest_ibniz_programs.txt).
+Listed alternatives are separate programs. The empty gradient/sawtooth
+program is preserved too.
+
+### Summerlab
+
+[summerlab-ibniz-latest.txt](summerlab-ibniz-latest.txt) adds 117 programs from
+[Labomedia](https://ressources.labomedia.org/ibniz). These include the complete
+multiline sequencers and `trop colle`.
+
+### TTjm
+
+[ttjm_ibniz.md](ttjm_ibniz.md) adds 69 programs and variants from
+[TTjm's YouTube channel](https://www.youtube.com/@TTjm-kb6jj).
+Search **TTjm** in the GUI to show them.
+
+The source has 41 numbered entries; it does not list 020. Entries 029 and 025
+share their explicit `M` audio section across the listed video variants.
+Other alternatives remain separate. No missing instructions are inferred.
+The ambiguous trailing formulas in 019 and 018 are standalone variants.
+The two `etc.` placeholders are excluded. Viznut's original formula credit
+in 025 is retained.
+
+### emoc/IBNIZ
+
+[emoc-ibniz.md](emoc-ibniz.md) is an unchanged copy of
+[emoc/IBNIZ revision `8004c8abecae10bdd0282154f1a16cb5f6b261e7`](https://github.com/emoc/IBNIZ/blob/8004c8abecae10bdd0282154f1a16cb5f6b261e7/README.md).
+It adds 20 expressions, including the 2020 bytefolk rhythms, melodies and
+accompaniments.
+
+Each expression remains separate. No `M` separator or other instruction is
+inserted. Another 22 occurrences reuse Summerlab programs; two occurrences
+repeat earlier entries in the collection.
+
+Search **emoc** to see all 42 distinct runnable expressions. Reused programs
+show an additional pinned source link and original title.
+`amateurish disintegration` is excluded because lowercase `e` is unsupported.
+The source is preserved without rewriting it.
+
+### Extraction rules
 
 [collection-index.tsv](collection-index.tsv) maps every candidate occurrence
-to its `.ib` file or records why it was excluded. `included` means a new
-file, `reused` means a previously bundled program, and `duplicate` points
-to an earlier extraction. Deduplication compares compiled instructions and
-binary data, not names or comments. The bitmap zoomer reuses the original
-`bitmapzoomer.ib`, retaining its complete binary data segment.
-Line references can combine ranges and comma-separated spans, for example
-`31,43` selects a video formula and its shared audio section.
+to its `.ib` file or explains why it was excluded.
 
-49 Summerlab candidates are excluded: 36 use unsupported characters and
-13 are incomplete sequencers, empty templates, definitions without callers,
-or calls without their definitions. Unsupported lowercase instructions are
-not silently uppercased or rewritten. Compiling successfully does not imply
-that a program can complete video within the default instruction budget.
+| Status | Meaning |
+|--------|---------|
+| `included` | New file |
+| `reused` | Previously bundled program |
+| `duplicate` | Earlier extraction |
+| `skipped` | Excluded, with a reason |
+
+Deduplication compares compiled instructions and binary data, not names or
+comments. The bitmap zoomer reuses `bitmapzoomer.ib` with its complete data
+segment. Line references support ranges and comma-separated spans.
+For example, `31,43` selects a video formula and its shared audio section.
+
+Of the 49 excluded Summerlab candidates, 36 use unsupported characters.
+The other 13 are incomplete sequencers, empty templates, definitions without
+callers, or calls without definitions. Unsupported lowercase instructions are
+not silently uppercased or rewritten.
+
+**Compilation does not guarantee a complete video page within the default
+instruction budget.**
 
 Each new file records the collection, source lines, source link (pinned where
 available), and individual credit where supplied. The TTjm channel link is
-not revision-pinned; the bundled Markdown is preserved as the extraction
-source. None of these four collections declares an
-explicit license; no license is inferred from this project's license or
-from unrelated galleries.
+not revision-pinned. Its bundled Markdown is kept as the extraction source.
+
+**None of these four collections states an explicit license.** No license is
+inferred from this project or unrelated galleries.

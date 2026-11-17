@@ -1,7 +1,7 @@
 # Improvements
 
-Recommended priority: example browser, unsaved-change protection, then
-recording controls. The remaining improvements are not ranked.
+The feature checklists below are complete. The remaining video optimization
+work is the [performance-regression gate](#5-validate-each-optimization).
 
 ## Example browser
 
@@ -35,9 +35,9 @@ recording controls. The remaining improvements are not ranked.
 
 ## Video optimization plan
 
-The headless audit ran all 195 `.ib` examples for 1,800 ticks each (30 simulated
-seconds), using the default 4,000,000 instructions per tick and default input.
-Eight examples exhausted their budget before a video page flip:
+The initial headless audit covered all 195 `.ib` examples bundled at the time.
+Each ran for 1,800 ticks (30 simulated seconds), with default input and
+4,000,000 instructions per tick. Eight exhausted the budget before a page flip:
 
 | Example | Incomplete video ticks | Rate |
 |---------|------------------------|------|
@@ -50,18 +50,18 @@ Eight examples exhausted their budget before a video page flip:
 | `summerlab-snotty-ice-cream-electrode.ib` | 900 | 50.0% |
 | `ibnizdemo.ib` | 224 | 12.4% |
 
-These are instruction-budget misses, not confirmed buffer corruption. Faster
-execution alone will not remove misses at the same instruction-count limit.
-The other 187 examples had no incomplete video ticks within the test window;
-this was not visual inspection or interactive mouse testing.
+**These are instruction-budget misses, not confirmed buffer corruption.**
+Faster execution cannot remove misses at the same instruction limit.
+The other 187 examples had no incomplete video ticks. This audit did not
+include visual inspection or interactive mouse testing.
 
 Five-second follow-up runs eliminated misses for seven examples at 64,000,000
-instructions per tick; `summerlab-muon.ib` needed 128,000,000. Several then
-exceeded the 16.7 ms real-time deadline. `ibnizdemo.ib` and
+instructions per tick. `summerlab-muon.ib` needed 128,000,000. Several then
+exceeded the 16.7 ms realtime deadline. `ibnizdemo.ib` and
 `summerlab-snotty-ice-cream-electrode.ib` stayed below that deadline on the audit
 machine and are promising early targets. Results are hardware-dependent.
 
-Implement in the following order:
+The five stages below record the implementation order and measured results.
 
 ### 1. Establish a repeatable baseline
 
@@ -73,20 +73,22 @@ Implement in the following order:
 - [x] Use the eight affected examples as stress cases and simple textures as
       regression controls; include mouse-input scenarios for interactive programs.
 
-Implemented in `examples/playback_bench.rs`; see the README's **Playback
-benchmark** section for commands and metric definitions. The native
-`--desktop` mode measures synchronized OpenGL texture uploads separately from
-preparation, not just egui command queueing. Headless output leaves those
-measurements empty. Page probes use a separate VM, preserve capped work between
-ticks, and report unfinished work rather than pretending it completed.
+Implemented in `examples/playback_bench.rs`. See
+[Playback benchmark](DOCUMENTATION.md#playback-benchmark) for commands and metrics.
+
+Native `--desktop` mode measures completed OpenGL uploads separately from
+preparation, not just egui queueing. Headless output leaves those fields empty.
+Page probes use a separate VM, retain capped work between ticks, and report
+unfinished work explicitly.
 
 The initial instrumented release run covered all 195 files and 199 input
 scenarios (300 measured ticks, no warmup). Every default-input video-miss count
-matched the earlier 300-tick audit. On the Apple M4 Max audit machine, affected
-examples had RGB-conversion p95 times around 0.13 ms versus execution p95 times
-of 4.9-9.8 ms at the default budget. A native run also measured 300 actual
-uploads per control after 60 warmup ticks. These measurements support
-prioritizing VM execution; they are not portable performance thresholds.
+matched the earlier 300-tick audit.
+
+On the Apple M4 Max audit machine, affected examples had RGB-conversion p95
+times around 0.13 ms, versus execution p95 of 4.9-9.8 ms at the default budget.
+A native run measured 300 actual uploads per control after 60 warmup ticks.
+These results favor VM optimization. They are not portable thresholds.
 
 ### 2. Reduce conversion and display overhead
 
@@ -101,24 +103,26 @@ even when the preview refresh policy skipped texture upload in
 - [x] Benchmark vectorized conversion only if profiling shows conversion remains
       significant; require byte-identical RGB results.
 
-Desktop playback now uses `FrameRender::advance_tick` and a reusable
+Desktop playback uses `FrameRender::advance_tick` and a reusable
 `Vm::rgb_into` destination. Conversion runs once when a preview or recording
-needs the image; skipped previews do not convert. Recording still captures
-every VM tick, and debugger steps always refresh their image without a second
-conversion at tick completion. Existing full-frame APIs and headless exports
-remain unchanged.
+needs an image. Skipped previews do not convert.
+
+Recording still captures every tick. Debugger steps refresh the image without
+converting again at tick completion. Full-frame APIs and headless exports
+are unchanged.
 
 A release-mode headless pipeline comparison (600 measured ticks after 60
 warmup ticks, seven control/stress programs) reduced conversions from 600 to
-150 at a simulated 15 fps preview cadence, with identical instruction and
-video-miss counts. This measures conversion policy, not native UI throughput.
-Scalar conversion remains around 0.13 ms per image on the audit machine, well
-below the 16.7 ms tick deadline; SIMD benchmarking is deferred rather than
-adding architecture-specific complexity for a small absolute cost. Conversion
-is checked byte-for-byte against the original scalar arithmetic.
+150 at a simulated 15 fps preview rate. Instruction and video-miss counts
+were identical. This measures conversion policy, not native UI throughput.
 
-Do not treat a missing page flip as proof that the visible image is unchanged:
-programs can write directly into visible memory.
+Scalar conversion remains around 0.13 ms per image, well below the 16.7 ms
+deadline. SIMD benchmarking is deferred: the small absolute cost does not
+justify architecture-specific complexity. Output is checked byte-for-byte
+against the original scalar arithmetic.
+
+**The image can change without a page flip.** Programs can write directly
+to visible memory.
 
 ### 3. Optimize profiled VM hot paths
 
@@ -134,22 +138,24 @@ Native CPU sampling located the hot work in the interpreter loop. A separate
 single-instruction trace of three default-input ticks per stress/control case
 (4,000,000 instructions per tick) identified literal memory reads/stores,
 literal stack picks, and duplicate/multiply sequences as frequent operations.
-Literal reads alone occurred at roughly 9-22% of executed instruction positions
-in several affected programs; `mandelbrot.ib` also spent about 15% of its
-instructions on `L`. These are workload-specific counts, not time percentages.
+Literal reads occupied roughly 9-22% of executed instruction positions in
+several affected programs. `mandelbrot.ib` spent about 15% on `L`.
+These are workload-specific instruction counts, not time percentages.
 
 The compiler now records fusion hints alongside the original instructions.
 Rendering fuses literal `@`, `!`, and `)` pairs and `d*`, and uses a predecoded
-operand for the existing `d literal & *` fusion. Source instruction addresses
-are unchanged: jumps into sequences and debugger steps still execute the
-original instructions. Fusions run only when the slice and tick budgets can
-accommodate every instruction, including temporary writes and audio-position
-effects. Live recompilation refreshes the hints and execution flags.
+operand for the existing `d literal & *` fusion.
 
-The extended dispatch is selected once per render slice only for programs
-containing eligible sequences. Simple programs retain the smaller dispatch.
-Broader multiply/stack fusions and an out-of-line memory helper were measured
-and dropped: their gains did not justify their regressions or extra complexity.
+Source addresses are unchanged. Jumps into sequences and debugger steps still
+execute the original instructions. Fusion runs only when both budgets can
+fit every instruction. Temporary writes and audio-position effects are
+preserved. Live recompilation refreshes hints and execution flags.
+
+The extended dispatch is selected once per slice, only for eligible programs.
+Simple programs keep the smaller dispatch. Broader multiply/stack fusions
+and an out-of-line memory helper were measured, then dropped. Their gains
+did not justify regressions or added complexity.
+
 No loops are skipped, arithmetic approximated, or instruction budgets raised.
 
 Alternating release comparisons against commit `792d669` used 60 warmup ticks
@@ -170,20 +176,21 @@ reductions in median execution time (mean of the two per-run medians):
 
 These are hardware/compiler-dependent tradeoffs, not universal speedups.
 The four simple controls were within about -3% to +1% in that comparison.
-Targeted repeats also found roughly 6-10% slower execution in the
+
+Targeted repeats found roughly 6-10% slower execution in the
 `d7*xr/31a/` family (`summerlab-radiation.ib`,
 `summerlab-four-rotations.ib`, and Summerlab lines 254/255); their absolute
 median increases were approximately 0.16-0.25 ms. Keep these cases in future
-code-generation/regression comparisons rather than assuming every program
-benefits from the new interpreter layout.
+code-generation comparisons. Not every program benefits from the new layout.
 
 All deterministic baseline fields matched across 195 examples and 199 input
-scenarios. Differential tests compare RGB, audio, complete memory, registers,
-and instruction counts against single-instruction execution, including cyclic
-stack boundaries, aliased literal accesses, partial budgets, control-flow
-entry inside sequences, and live recompilation during a partial tick.
-Instruction-budget video misses remain unchanged; faster execution does not
-remove the instruction-count limit.
+scenarios. Differential tests compare RGB, audio, full memory, registers and
+instruction counts against single-instruction execution.
+
+Cases cover cyclic-stack boundaries, aliased literal accesses, partial budgets,
+control-flow entry inside sequences and live recompilation during a partial
+tick. Video-budget misses are unchanged. Faster execution does not remove
+the instruction limit.
 
 Preserve instruction counts, intermediate memory writes, cyclic-stack behavior,
 single-step debugging, and instruction-bounded rendering. Do not assume pixels
@@ -197,14 +204,14 @@ are independent: programs can access shared memory.
       performance comparisons.
 - [x] Confirm audio scheduling and recording semantics remain unchanged.
 
-The Playback menu now offers Default (4M), Complex (64M), and Very complex
-(128M) presets alongside the existing custom budget field. Selecting a preset
-only changes the next tick's numeric budget. Partial ticks retain their
-original budgets, controls and work slices remain unchanged, and no automatic
-adaptation or VM reset occurs. Numeric budgets continue to use the existing
-NSM session format. Tick diagnostics distinguish the actual current/last
-budget from the configured next budget, and cumulative video-budget misses
-are shown separately from late ticks and audio-budget misses.
+The Playback menu offers Default (4M), Complex (64M), and Very complex (128M)
+presets, plus a custom budget. A preset changes only the next tick's budget:
+partial ticks keep their original limits. Controls and work slices stay the
+same. There is no automatic adaptation or VM reset.
+
+NSM keeps the existing numeric-budget format. Diagnostics separate the
+current/last budget from the next budget. Cumulative video-budget misses
+are separate from late ticks and audio-budget misses.
 
 Release-mode headless comparisons on the audit machine used the optimized
 VM, default input, 60 warmup ticks and 300 measured ticks per stress case.
@@ -222,22 +229,28 @@ headless tick time. No measured audio-budget misses occurred at any preset.
 | `summerlab-muon.ib` | 285 | 150 | 0 | 300 / 300 | 72.9 / 95.0 |
 | `summerlab-snotty-ice-cream-electrode.ib` | 150 | 0 | 0 | 0 / 0 | 9.7 / 9.7 |
 
-At 4M none of these measured ticks exceeded 16.7 ms, despite frequent video
-budget misses. At 64M seven examples completed every measured video page;
-128M also eliminated the muon misses, but neither higher preset guarantees
-real-time playback. Start with 64M for `ibnizdemo.ib` and
+At 4M no measured tick exceeded 16.7 ms, despite frequent video-budget misses.
+At 64M seven examples completed every measured page. At 128M muon also had no
+misses. **Neither higher preset guarantees realtime playback.**
+
+Start with 64M for `ibnizdemo.ib` and
 `summerlab-snotty-ice-cream-electrode.ib`; the heavier examples still need
-substantial execution speedups. Higher-cap runs are separate workloads because
-budget-limited ticks advance time differently; this is not a same-image
-speedup comparison or a guarantee about interactive inputs or device xruns.
+substantial execution speedups.
+
+Higher-cap runs are separate workloads: budget-limited ticks advance time
+differently. This is not a same-image speedup comparison or a guarantee about
+interactive inputs or device xruns.
 
 Scheduling remains the same: one quarter of the selected instruction budget
 is reserved for the audio phase, each completed tick supplies 1024 samples at
 61440 Hz, and recording captures one image and its audio per VM tick,
-regardless of preview refresh. Preset/partial-tick tests verify no reset or
-budget replacement mid-tick. Recording comparisons across all three presets
-match reference PPM frames and unscaled WAV samples, including pause/resume
-and compile-error suspension. See the README for reproducible budget commands.
+regardless of preview refresh.
+
+Preset/partial-tick tests verify no reset or mid-tick budget replacement.
+Recording comparisons across all three presets match reference PPM frames
+and unscaled WAV samples, including pause/resume and compile-error suspension.
+See [Compare instruction budgets](DOCUMENTATION.md#compare-instruction-budgets)
+for reproducible commands.
 
 Raising the budget is not itself an execution optimization or a guarantee of
 60 Hz playback. Heavy fractals and `summerlab-muon.ib` need substantial speedups.
@@ -259,6 +272,8 @@ encoding and encoder cancellation with source-media retention. Clippy passed
 with warnings denied for desktop/all features and headless targets, and
 formatting checks passed.
 
+#### Correctness coverage
+
 The differential suite compares full memory, RGB, audio, VM status/registers,
 and logical instruction counts against single-instruction rendering. Cases
 include tick/slice boundaries, stack wraparound, aliased memory, control-flow
@@ -268,30 +283,35 @@ also cover lazy conversion, debugger stepping, preview throttling, budget
 presets, NSM persistence, and full-rate recording.
 
 The full audit reran all 195 programs for 1,800 measured ticks each (351,000
-ticks total), with no warmup, default input, and the original 4,000,000
-instruction budget. Every example's video-miss, audio-miss, and budget-hit
-count matched the original 30-second audit exactly. The same eight examples
-had 9,385 incomplete video ticks in total; the remaining 187 had none.
-There were no audio-budget misses or terminated programs. This confirms
-unchanged budget-limited behavior, not elimination of the eight examples'
-instruction limits.
+ticks total), with no warmup, default input and the original 4,000,000
+instruction budget. Every example's video-miss, audio-miss and budget-hit
+count matched the original 30-second audit exactly.
+
+The same eight examples had 9,385 incomplete video ticks; the other 187 had
+none. There were no audio-budget misses or terminated programs. This confirms
+unchanged budget-limited behavior, not removal of the instruction limits.
 
 The run used Rust 1.99.1 / LLVM 23.1.3 on an Apple M4 Max. All examples' p95
 headless tick times were below 16.7 ms (maximum 9.219 ms). There was one
 wall-clock outlier: `mandelbrot.ib` took 25.077 ms on one tick, versus zero
-late ticks in the original audit. Deadline counts include scheduling noise
-and are reported separately from the identical deterministic budget counts;
-timings collected on different dates are not used to establish speedups.
+late ticks in the original audit.
+
+Deadline counts include scheduling noise. They are separate from the identical
+deterministic budget counts. Timings from different dates are not used to
+establish speedups.
+
+#### Remaining performance regressions
 
 **The no-performance-regression gate remains unmet.** Three alternating
 baseline/optimized release pairs compared commit `792d669` with `f2a82a0`
 on the audit machine. All used default input, 60 warmup ticks, 300 measured
-ticks, and the same 4,000,000-instruction tick budget. Video/audio misses,
-budget hits and mean instruction counts matched exactly in all 16 selected
-stress/control/regression cases. The eight stress cases improved by
+ticks and the same 4,000,000-instruction budget.
+
+Video/audio misses, budget hits and mean instruction counts matched in all
+16 stress/control/regression cases. The eight stress cases improved by
 approximately 0.9-20.9% in median execution time (median of three per-run
-medians), so those gains do not come from increasing the instruction budget.
-However, the following slowdowns were reproduced:
+medians). These gains do not come from a larger budget.
+The following slowdowns were reproduced:
 
 | Example | Baseline median ms | Optimized median ms | Slowdown |
 |---------|--------------------|---------------------|----------|
@@ -309,9 +329,9 @@ not portable timing assertions for CI. Do not mark the final checkbox complete
 until the reproduced regressions have been addressed and paired comparisons
 repeated.
 
-Start with baseline instrumentation and reusable/lazy RGB conversion, then use
-profiles to guide VM fusion. Defer JIT compilation, GPU execution, and threading
-until measurements justify their complexity.
+For further work, keep the same approach: establish a baseline, avoid
+unnecessary conversion, then use profiles to guide fusion. Defer JIT
+compilation, GPU execution and threading until measurements justify them.
 
 ## Distribution packages
 

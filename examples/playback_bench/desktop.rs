@@ -17,7 +17,7 @@ struct TextureUpload {
 
 impl TextureUpload {
     fn new(gl: Arc<glow::Context>) -> Result<Self, Box<dyn Error>> {
-        // The native app invokes this and all uploads on the current GL thread.
+        // The native app runs initialization and uploads on the current GL thread.
         let texture = unsafe { gl.create_texture().map_err(io::Error::other)? };
         Ok(Self { gl, texture })
     }
@@ -47,7 +47,7 @@ impl Upload for TextureUpload {
                 glow::TEXTURE_MAG_FILTER,
                 glow::NEAREST as i32,
             );
-            // Exclude earlier egui work; include completion, not just command queueing.
+            // Exclude earlier egui work. Time upload completion, not just queueing.
             self.gl.finish();
             let started = Instant::now();
             self.gl.tex_image_2d(

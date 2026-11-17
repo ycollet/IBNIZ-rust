@@ -79,8 +79,10 @@ pub struct Frame {
     pub audio_complete: bool,
 }
 
-/// A completed tick without RGB conversion. Read the visible page before
-/// executing more instructions if an image of this tick is needed.
+/// A completed tick without RGB conversion.
+///
+/// To capture this tick's image, read the visible page before executing more
+/// instructions.
 pub struct FrameTick {
     pub audio: Vec<i16>,
     pub instructions: usize,
@@ -112,9 +114,11 @@ pub struct FrameProfile {
     pub video_instructions: usize,
 }
 
-/// A resumable, instruction-bounded tick. Resume on the same VM without calling
-/// `step`, `reset` or another frame renderer between slices. Live input and
-/// program replacement are supported; discard this job when resetting the VM.
+/// A resumable tick with an instruction limit.
+///
+/// Resume on the same VM. Do not call `step`, `reset` or another frame renderer
+/// between slices. Live input and program replacement are supported.
+/// Discard this job when resetting the VM.
 pub struct FrameRender {
     budget: usize,
     instructions: usize,
@@ -134,16 +138,18 @@ impl FrameRender {
         self.budget
     }
 
-    /// Executes at most `slice_instructions` instructions. Returns the completed
-    /// tick only after its normal completion or total instruction-budget limit.
-    /// A completed job must not be resumed.
+    /// Execute at most `slice_instructions` instructions.
+    ///
+    /// Return the tick when it completes or reaches its total instruction budget.
+    /// Do not resume a completed job.
     pub fn advance(&mut self, vm: &mut Vm, slice_instructions: usize) -> Option<Frame> {
         self.advance_tick(vm, slice_instructions)
             .map(|tick| tick.with_rgb(vm.rgb()))
     }
 
-    /// Like `advance`, but completes the tick without converting its visible
-    /// page. Call `Vm::rgb_into` before executing more instructions when needed.
+    /// Like `advance`, but without RGB conversion.
+    ///
+    /// To capture the image, call `Vm::rgb_into` before executing more instructions.
     pub fn advance_tick(&mut self, vm: &mut Vm, slice_instructions: usize) -> Option<FrameTick> {
         self.advance_inner(vm, slice_instructions, None)
     }
@@ -235,9 +241,10 @@ pub struct RealtimeBatch {
     pub skipped_audio: u64,
 }
 
-/// Realtime playback state. Keep one scheduler per VM, starting from reset;
-/// do not interleave it with fixed-tick rendering. Clock ticks are monotonic,
-/// measured at 60 Hz with pauses excluded. There is no per-video-page budget.
+/// Realtime playback state with no per-video-page budget.
+///
+/// Use one scheduler per VM, starting from reset. Do not interleave it with
+/// fixed-tick rendering. Supply a monotonic 60 Hz clock that excludes pauses.
 pub struct RealtimeRender {
     audio_cursor: i64,
     delivered: u64,
@@ -255,10 +262,11 @@ impl RealtimeRender {
         }
     }
 
-    /// Prioritize up to `audio_ahead` samples ahead of the playback clock,
-    /// then spend remaining work on video. Return at a page flip, an audio
-    /// block, or the instruction limit. A zero-instruction batch is waiting
-    /// for the next clock tick (or the VM has terminated).
+    /// Generate audio up to `audio_ahead` samples ahead of the clock, then video.
+    ///
+    /// Return at a page flip, an audio block, or the instruction limit.
+    /// With a positive limit, a zero-instruction batch means the scheduler is
+    /// waiting for the next clock tick or the VM has terminated.
     pub fn advance(
         &mut self,
         vm: &mut Vm,
@@ -313,8 +321,7 @@ impl RealtimeRender {
         }
         vm.frame = clock_tick as u32;
         let due = clock_tick.saturating_mul(1024);
-        // Do not generate an unbounded stale backlog after an interruption.
-        // Moving sample time leaves the cyclic stack and in-flight code intact.
+        // Skip stale audio without resetting the cyclic stack or in-flight code.
         if paced && vm.audio_enabled && due.saturating_sub(self.delivered) > 4096 {
             let skip = due - self.delivered;
             vm.audio_position = vm.audio_position.wrapping_add(skip as i64);
@@ -480,8 +487,8 @@ impl Vm {
         self.program.source_ranges[self.ip].clone()
     }
 
-    /// Read a cyclic data-stack slot, with depth zero at the selected context's SP.
-    /// These stacks have no tracked logical depth; old slots remain inspectable.
+    /// Read a cyclic data-stack slot. Depth zero is the selected context's SP.
+    /// Logical depth is not tracked; old slots remain visible.
     pub fn data_stack_entry(&self, context: Context, depth: usize) -> StackEntry {
         let (base, mask) = match context {
             Context::Video => (VIDEO_BASE, 0x1ffff),
@@ -494,8 +501,8 @@ impl Vm {
         }
     }
 
-    /// Read a cyclic return-stack slot. Values are raw addresses/counts, not
-    /// necessarily 16.16 numbers or a conventional call stack.
+    /// Read a cyclic return-stack slot.
+    /// Values are raw addresses/counts, not necessarily 16.16 numbers or call frames.
     pub fn return_stack_entry(&self, context: Context, depth: usize) -> StackEntry {
         let base = match context {
             Context::Video => 0xcc000,
@@ -643,7 +650,7 @@ impl Vm {
         r.where_count = 0;
         r.previous_sp = r.sp;
         if current == Context::Audio {
-            // Only completed media iterations commit samples; stack temporaries do not.
+            // Commit samples only for completed media iterations, not stack temporaries.
             self.audio_written = self.audio_position;
         }
         if current == preferred {
@@ -914,8 +921,8 @@ impl Vm {
             .expect("an unlimited slice completes an instruction-bounded tick")
     }
 
-    /// Render with stage timings without enabling instrumentation in normal
-    /// playback. Instruction counts split the scheduler's audio and video phases.
+    /// Render with stage timings; normal playback remains uninstrumented.
+    /// Instruction counts separate the scheduler's audio and video phases.
     pub fn render_frame_profiled(&mut self, max_instructions: usize) -> (Frame, FrameProfile) {
         let started = Instant::now();
         let mut profile = FrameProfile::default();
@@ -930,7 +937,7 @@ impl Vm {
         (frame, profile)
     }
 
-    /// Begins a tick that can be resumed in small instruction slices.
+    /// Begin a tick that can be resumed in small instruction slices.
     pub fn begin_frame(&mut self, max_instructions: usize) -> FrameRender {
         self.preferred = Context::Audio;
         FrameRender {
@@ -951,8 +958,8 @@ impl Vm {
         rgb
     }
 
-    /// Convert the current visible page, reusing the destination's allocation.
-    /// Always reads memory, including direct writes made without a page flip.
+    /// Convert the visible page, reusing the destination's allocation.
+    /// Always read memory, including direct writes made without a page flip.
     pub fn rgb_into(&self, rgb: &mut Vec<u8>) {
         rgb.clear();
         rgb.reserve(WIDTH * HEIGHT * 3);
@@ -995,7 +1002,7 @@ impl Vm {
         let base = self.stack_base();
         let sp = self.reg().sp;
         let mask = self.stack_mask();
-        // Write first: reads and stores may alias the pushed address slot.
+        // Write the literal first: reads and stores may alias its stack slot.
         self.memory[base + (sp.wrapping_add(1) & mask)] = value;
         if op == b'!' {
             self.move_sp(-1);
@@ -1051,7 +1058,7 @@ fn binary_value(op: u8, b: i32, a: i32) -> i32 {
         b'|' => b | a,
         b'^' => b ^ a,
         b'r' => (b as u32).rotate_right(((a >> 16) & 31) as u32) as i32,
-        // Match the actual IBNIZ_SHL macro, including its signed-right branch.
+        // Preserve the IBNIZ_SHL macro's signed-right-shift quirk.
         b'l' => {
             if a & (32 << 16) != 0 {
                 b >> (((!a) >> 16) & 31)

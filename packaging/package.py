@@ -155,7 +155,7 @@ def dmg(binary, work, output, version):
             "NSHighResolutionCapable": True,
             "NSSupportsAutomaticGraphicsSwitching": True,
         }, file)
-    # Ad-hoc signing seals the bundle but does not confer Developer ID trust.
+    # Ad-hoc signing seals the bundle; it does not establish Developer ID trust.
     run("codesign", "--force", "--sign", "-", app)
     run("codesign", "--verify", "--strict", app)
     (image / "Applications").symlink_to("/Applications", target_is_directory=True)

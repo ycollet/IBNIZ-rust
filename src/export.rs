@@ -15,7 +15,8 @@ pub fn write_ppm(mut writer: impl Write, rgb: &[u8]) -> io::Result<()> {
     writer.flush()
 }
 
-/// Streams a known number of samples without retaining the recording in memory.
+/// Stream a known sample count without keeping the recording in memory.
+///
 /// Wrap file outputs in `std::io::BufWriter` to batch sample writes.
 /// Call `finish` to verify the sample count and report buffered I/O errors.
 #[must_use = "call finish to verify the sample count and flush the WAV output"]
@@ -73,8 +74,9 @@ pub fn write_wav(writer: impl Write, samples: &[i16]) -> io::Result<()> {
     Ok(())
 }
 
-/// Streams a recording of unknown duration, then rewrites its WAV header.
-/// The writer must start at offset zero. Call `finish` to finalize the file.
+/// Stream a recording of unknown duration to a seekable writer.
+///
+/// The WAV starts at byte zero. Call `finish` to write the final header and flush.
 #[must_use = "call finish to finalize the WAV header and flush the recording"]
 pub struct WavRecording<W: Write + Seek> {
     writer: W,
