@@ -176,6 +176,8 @@ The status bar shows stack pointers, video mode, time, instruction count and
 audio health. Slow programs are bounded by `--max-instructions` per tick
 (default 4,000,000); budget exhaustion is reported instead of freezing the UI.
 Playback slows down if your machine cannot produce a tick in 1/60 second.
+This is the default **Fixed ticks** mode. For clock-driven playback with
+variable completed-video FPS, see [Realtime variable FPS](#realtime-variable-fps).
 Lower preview refresh rates skip RGB conversion as well as texture uploads on
 ticks that are not displayed, unless recording needs the image. RGB storage is
 reused. VM/audio ticks and full-rate recordings are unaffected; debugger steps
@@ -281,7 +283,8 @@ recording. Debugger window/view choices are not part of NSM session state.
 
 ### Playback tuning
 
-The **Playback** menu changes settings live, without resetting the VM:
+The **Playback** menu changes tuning settings live, without resetting the VM.
+Changing the playback **mode**, unlike tuning, resets and pauses the VM.
 
 | Setting | Effect |
 |---------|--------|
@@ -318,6 +321,47 @@ These changes tolerate short scheduling delays; they cannot make a program
 that consistently produces audio too slowly play continuously. Sustained
 overload still slows playback and can cause gaps. Buffering and fades affect
 speaker playback only, not VM audio, headless output, or GUI recordings.
+
+#### Realtime variable FPS
+
+Select **Playback > Realtime variable FPS**, then press **F1** to run.
+Switching between this mode and **Fixed ticks (default)** resets memory,
+stacks, time and diagnostics and pauses playback, while retaining your source
+and other playback settings.
+
+This mode uses an active-playback clock in 1/60-second units. It keeps
+unfinished video computation across clock ticks and UI work slices, rather
+than imposing an instruction budget on each video page. Completed pages are
+paced to at most one per clock tick; expensive pages finish less frequently.
+At a page flip, video time catches up to the current playback clock, so slow
+video does not intentionally put the entire animation into slow motion.
+Preview refresh still limits display updates, not VM execution. The visible
+page is refreshed at that rate even without a flip, preserving direct writes.
+
+The scheduler prioritizes generating audio ahead of the clock using the
+selected/adaptive audio-buffer target, then works on video. Context switches
+still occur at normal VM media boundaries: code stuck inside an inner loop
+can prevent audio progress. After audio falls more than four ticks behind
+the clock, its sample time jumps forward instead of generating an unbounded
+stale backlog. The status bar reports **Skipped audio** samples separately
+from device **Audio gaps**. Sustained overload can still cause audible gaps;
+this is not a guarantee of uninterrupted sound.
+
+The configured work-slice limit still applies, checked every 1,024
+instructions, so unfinished or non-producing programs remain interruptible.
+Instruction-budget presets and the custom tick budget apply only to fixed
+ticks and are disabled in realtime mode. Its status shows completed
+pages/second averaged over active playback, page count and skipped audio,
+rather than fixed-tick budget misses. Pauses and compile errors freeze the
+playback clock; live recompilation preserves VM state and unfinished work.
+Debugger stepping remains available while paused and bypasses page pacing.
+
+GUI recording is **fixed-tick only**. Switch modes before starting a take;
+mode changes are blocked while a take is active or finalizing. Headless
+rendering and existing fixed-tick library APIs are unchanged. NSM saves the
+mode and restarts its clock from zero when loading; older sessions default
+to fixed ticks. This is an original-style scheduling option, not a
+cycle-exact recreation of the SDL frontend or its macOS timer workaround.
 
 ### GUI recording
 
@@ -366,8 +410,8 @@ standalone mode. Headless exports ignore `NSM_URL`.
 Each client uses the project directory assigned by NSM, containing a
 self-contained `state.json`. Session saves preserve editor source (including
 invalid drafts), the last valid program, run/pause and editor visibility,
-volume, DC blocker, instruction budget, work slice, preview refresh and minimum
-audio buffer. Loading starts the VM at **time zero** with memory/stacks and
+volume, DC blocker, instruction budget, work slice, preview refresh, minimum
+audio buffer and playback mode. Loading starts the VM at **time zero** with memory/stacks and
 diagnostic counters reset, rather than resuming an execution snapshot.
 Invalid drafts remain visible and suspend playback until corrected.
 
@@ -473,6 +517,13 @@ storage when needed. Convert before executing more VM instructions to capture
 that tick's image. `FrameTick::with_rgb` attaches the converted page for callers
 that need a full `Frame`. Existing `render_frame`, profiled rendering, `advance`
 and `rgb` still produce complete RGB images.
+
+`RealtimeRender::new(&vm)` provides the separate realtime scheduler. Start
+from a reset VM and supply a monotonic 60 Hz playback-clock value to `advance`,
+along with an audio lookahead in samples and an instruction limit per work
+batch. Returned `RealtimeBatch` values contain available audio, page-completion
+events and skipped-audio counts, not fixed-duration frames. Do not interleave
+this scheduler with fixed-tick renderers on the same VM.
 
 Rendering uses compiler-side fusion hints for selected arithmetic, literal
 memory accesses, and stack picks. Original instruction addresses, logical

@@ -12,7 +12,7 @@ use std::{
 };
 
 use eframe::egui::{self, Color32, Key, Modifiers, TextureHandle};
-use ibniz::{CompileError, FrameRender, HEIGHT, Program, Vm, WIDTH};
+use ibniz::{CompileError, FrameRender, HEIGHT, Program, RealtimeRender, Vm, WIDTH};
 
 use crate::Options;
 use audio::Audio;
@@ -78,6 +78,12 @@ struct App {
     budget: usize,
     render: Option<FrameRender>,
     render_work: Duration,
+    variable_fps: bool,
+    realtime: Option<RealtimeRender>,
+    realtime_elapsed: Duration,
+    realtime_updated: Option<Instant>,
+    realtime_pages: u64,
+    realtime_skipped_audio: u64,
     slice_ms: u64,
     preview_fps: u32,
     next_preview: Instant,
@@ -145,6 +151,12 @@ impl App {
             budget: options.budget,
             render: None,
             render_work: Duration::ZERO,
+            variable_fps: false,
+            realtime: None,
+            realtime_elapsed: Duration::ZERO,
+            realtime_updated: None,
+            realtime_pages: 0,
+            realtime_skipped_audio: 0,
             slice_ms: 6,
             preview_fps: 60,
             next_preview: Instant::now(),
@@ -177,6 +189,7 @@ impl App {
 
     fn toggle_running(&mut self) {
         self.running = !self.running;
+        self.realtime_updated = None;
         self.next_tick = Instant::now();
         if let Some(audio) = &mut self.audio {
             audio.clear();
@@ -187,6 +200,7 @@ impl App {
         self.vm.reset();
         self.render = None;
         self.render_work = Duration::ZERO;
+        self.reset_realtime();
         self.next_tick = Instant::now();
         self.texture = None;
         self.rgb.clear();
@@ -194,6 +208,39 @@ impl App {
             audio.clear();
         }
         self.reset_counters();
+    }
+
+    fn reset_realtime(&mut self) {
+        self.realtime = None;
+        self.realtime_elapsed = Duration::ZERO;
+        self.realtime_updated = None;
+        self.realtime_pages = 0;
+        self.realtime_skipped_audio = 0;
+    }
+
+    fn set_variable_fps(&mut self, enabled: bool) {
+        if self.variable_fps == enabled {
+            return;
+        }
+        if self.recording.is_some() {
+            self.error = Some("Finish recording before changing playback mode.".into());
+            return;
+        }
+        self.variable_fps = enabled;
+        self.running = false;
+        self.reset();
+        self.notice = format!(
+            "{} playback selected; VM reset and paused.",
+            if enabled {
+                "Realtime variable FPS"
+            } else {
+                "Fixed-tick"
+            },
+        );
+    }
+
+    fn realtime_clock_tick(&self) -> u64 {
+        (self.realtime_elapsed.as_secs_f64() * 60.0) as u64
     }
 
     fn can_step(&self) -> bool {
@@ -212,30 +259,45 @@ impl App {
             return;
         }
         self.debugger.open = true;
-        if self.render.is_none() {
-            self.render = Some(self.vm.begin_frame(self.budget));
-            self.render_work = Duration::ZERO;
-        }
-        let started = Instant::now();
-        let frame = self
-            .render
-            .as_mut()
-            .expect("debugger tick")
-            .advance_tick(&mut self.vm, 1);
-        self.render_work += started.elapsed();
-        self.last_instructions = 1;
-        if let Some(frame) = frame {
-            self.last_budget = self.render.as_ref().expect("debugger tick").budget();
-            self.render = None;
-            self.last_instructions = frame.instructions;
-            self.last_tick_duration = self.render_work;
-            self.render_work = Duration::ZERO;
+        if self.variable_fps {
+            let clock = self.realtime_clock_tick();
+            let realtime = self
+                .realtime
+                .get_or_insert_with(|| RealtimeRender::new(&self.vm));
+            let batch = realtime.step(&mut self.vm, clock);
+            self.last_instructions = batch.instructions;
+            self.realtime_pages += u64::from(batch.video_complete);
+        } else {
+            if self.render.is_none() {
+                self.render = Some(self.vm.begin_frame(self.budget));
+                self.render_work = Duration::ZERO;
+            }
+            let started = Instant::now();
+            let frame = self
+                .render
+                .as_mut()
+                .expect("debugger tick")
+                .advance_tick(&mut self.vm, 1);
+            self.render_work += started.elapsed();
+            self.last_instructions = 1;
+            if let Some(frame) = frame {
+                self.last_budget = self.render.as_ref().expect("debugger tick").budget();
+                self.render = None;
+                self.last_instructions = frame.instructions;
+                self.last_tick_duration = self.render_work;
+                self.render_work = Duration::ZERO;
+            }
         }
         if let Some(audio) = &mut self.audio {
             audio.clear();
             audio.set_playing(false);
         }
         self.vm.rgb_into(&mut self.rgb);
+        self.upload_preview(ctx);
+        ctx.request_repaint();
+    }
+
+    fn upload_preview(&mut self, ctx: &egui::Context) {
         let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &self.rgb);
         if let Some(texture) = &mut self.texture {
             texture.set(image, egui::TextureOptions::NEAREST);
@@ -243,7 +305,6 @@ impl App {
             self.texture =
                 Some(ctx.load_texture("ibniz-video", image, egui::TextureOptions::NEAREST));
         }
-        ctx.request_repaint();
     }
 
     fn reset_counters(&mut self) {
@@ -260,6 +321,7 @@ impl App {
     }
 
     fn recompile(&mut self) {
+        self.realtime_updated = None;
         match Program::compile(&self.source) {
             Ok(program) => {
                 self.vm.replace_program(program);
@@ -320,6 +382,7 @@ impl App {
         self.vm = Vm::new(program);
         self.render = None;
         self.render_work = Duration::ZERO;
+        self.reset_realtime();
         self.compile_error = None;
         self.next_tick = Instant::now();
         self.texture = None;
@@ -449,6 +512,7 @@ impl App {
             slice_ms: self.slice_ms,
             preview_fps: self.preview_fps,
             buffer_ms: self.buffer_ms,
+            variable_fps: self.variable_fps,
         }
     }
 
@@ -509,6 +573,7 @@ impl App {
         self.slice_ms = state.slice_ms;
         self.preview_fps = state.preview_fps;
         self.buffer_ms = state.buffer_ms;
+        self.variable_fps = state.variable_fps;
         if let Some(audio) = &mut self.audio {
             audio.set_dc_blocker(self.dc_blocker);
             audio.set_buffer_ms(self.buffer_ms);
@@ -615,6 +680,10 @@ impl App {
     }
 
     fn start_recording(&mut self) {
+        if self.variable_fps {
+            self.error = Some("Recording requires fixed-tick playback. Switch modes in Playback first (resets and pauses the VM).".into());
+            return;
+        }
         if self.managed() && self.session.is_none() {
             self.nsm_error = Some("Wait for NSM to open a project before recording".into());
             return;
@@ -736,6 +805,14 @@ impl App {
                 self.running && self.compile_error.is_none() && self.vm.status().audio_enabled,
             );
         }
+        if self.variable_fps {
+            if self.running && self.compile_error.is_none() {
+                self.tick_realtime(ctx);
+            } else {
+                self.realtime_updated = None;
+            }
+            return;
+        }
         if self.running && self.compile_error.is_none() && Instant::now() >= self.next_tick {
             if self.render.is_none() {
                 self.render = Some(self.vm.begin_frame(self.budget));
@@ -780,13 +857,7 @@ impl App {
                 self.vm.rgb_into(&mut self.rgb);
             }
             if preview {
-                let image = egui::ColorImage::from_rgb([WIDTH, HEIGHT], &self.rgb);
-                if let Some(texture) = &mut self.texture {
-                    texture.set(image, egui::TextureOptions::NEAREST);
-                } else {
-                    self.texture =
-                        Some(ctx.load_texture("ibniz-video", image, egui::TextureOptions::NEAREST));
-                }
+                self.upload_preview(ctx);
                 let interval = Duration::from_secs_f64(1.0 / f64::from(self.preview_fps));
                 self.next_preview += interval;
                 if self.next_preview < preview_now {
@@ -823,6 +894,62 @@ impl App {
         }
         if self.running {
             ctx.request_repaint_after(self.next_tick.saturating_duration_since(Instant::now()));
+        }
+    }
+
+    fn tick_realtime(&mut self, ctx: &egui::Context) {
+        let started = Instant::now();
+        let target_ms = self
+            .audio
+            .as_ref()
+            .map_or(f64::from(self.buffer_ms), |audio| audio.status().target_ms);
+        let audio_ahead = ((target_ms / 1000.0 * 61_440.0).ceil() as usize) + 1024;
+        self.last_instructions = 0;
+        loop {
+            let now = Instant::now();
+            if let Some(previous) = self.realtime_updated.replace(now) {
+                self.realtime_elapsed += now.saturating_duration_since(previous);
+            }
+            let clock = self.realtime_clock_tick();
+            let batch = self
+                .realtime
+                .get_or_insert_with(|| RealtimeRender::new(&self.vm))
+                .advance(&mut self.vm, clock, audio_ahead, 1024);
+            self.last_instructions += batch.instructions;
+            self.realtime_pages += u64::from(batch.video_complete);
+            self.realtime_skipped_audio += batch.skipped_audio;
+            if let Some(audio) = &mut self.audio {
+                audio.enqueue(&batch.audio, self.volume);
+            }
+            if self.vm.status().stopped
+                || (batch.instructions == 0 && batch.audio.is_empty())
+                || started.elapsed() >= Duration::from_millis(self.slice_ms)
+            {
+                break;
+            }
+        }
+        let now = Instant::now();
+        if self.texture.is_none() || now >= self.next_preview {
+            self.vm.rgb_into(&mut self.rgb);
+            self.upload_preview(ctx);
+            self.next_preview = now + Duration::from_secs_f64(1.0 / f64::from(self.preview_fps));
+        }
+        if self.vm.status().stopped {
+            self.running = false;
+            self.realtime_updated = None;
+        }
+        if let Some(audio) = &mut self.audio {
+            audio.set_playing(self.running && self.vm.status().audio_enabled);
+        }
+        if self.running {
+            if self.last_instructions == 0 {
+                let clock = self.realtime_clock_tick();
+                let until_next = Duration::from_secs_f64((clock + 1) as f64 / 60.0)
+                    .saturating_sub(self.realtime_elapsed);
+                ctx.request_repaint_after(until_next);
+            } else {
+                ctx.request_repaint();
+            }
         }
     }
 
@@ -949,12 +1076,23 @@ impl App {
                     }
                 });
                 ui.menu_button("Playback", |ui| {
+                    ui.label("Playback mode (changing resets and pauses)");
+                    let mut variable_fps = self.variable_fps;
+                    ui.add_enabled_ui(self.recording.is_none(), |ui| {
+                        ui.selectable_value(&mut variable_fps, false, "Fixed ticks (default)");
+                        ui.selectable_value(&mut variable_fps, true, "Realtime variable FPS");
+                    });
+                    if variable_fps != self.variable_fps {
+                        self.set_variable_fps(variable_fps);
+                    }
+                    ui.small("Realtime: finish video pages, catch up time, prioritize audio. Recording requires fixed ticks.");
                     ui.label("Preview refresh (display only)");
                     ui.horizontal(|ui| {
                         for fps in [15, 30, 60] {
                             ui.selectable_value(&mut self.preview_fps, fps, format!("{fps} fps"));
                         }
                     });
+                    ui.add_enabled_ui(!self.variable_fps, |ui| {
                     ui.label("Instruction budget presets (next tick)");
                     for (label, budget) in BUDGET_PRESETS {
                         ui.selectable_value(&mut self.budget, budget, label);
@@ -975,6 +1113,7 @@ impl App {
                         );
                     });
                     ui.small("Higher budgets can reduce incomplete frames but do not guarantee 60 Hz. Work slices and the current tick are unchanged.");
+                    });
                     ui.add(egui::Slider::new(&mut self.slice_ms, 1..=MAX_WORK_SLICE_MS).text("Work slice (ms)"))
                         .on_hover_text(
                             "Maximum VM work per UI update, checked every 1024 instructions. \
@@ -1028,7 +1167,7 @@ impl App {
                     if self.recording.is_none() {
                         if ui
                             .add_enabled(
-                                self.compile_error.is_none() && !self.vm.status().stopped,
+                                !self.variable_fps && self.compile_error.is_none() && !self.vm.status().stopped,
                                 egui::Button::new("Start recording"),
                             )
                             .on_hover_text(
@@ -1048,18 +1187,31 @@ impl App {
                         ui.label("Finalizing WAV / encoding MP4...");
                     }
                     ui.small("Each take gets a new subfolder. Audio is full-scale, unfiltered VM output.");
+                    if self.variable_fps {
+                        ui.label("Recording requires fixed-tick mode; change it in Playback (resets and pauses).");
+                    }
                 });
             });
         });
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             let status = self.vm.status();
             ui.label(format!(
-                "T={:04X}  Video {:?} SP={:05X}  Audio {} SP={:04X}  IP={}  {} instructions/tick{}",
+                "T={:04X}  Video {:?} SP={:05X}  Audio {} SP={:04X}  IP={}  {} instructions/{}{}",
                 status.frame & 65535, status.video_mode, status.video_stack_pointer,
                 if status.audio_enabled { "mono" } else { "off (non-producing stack)" },
                 status.audio_stack_pointer, status.instruction_pointer, self.last_instructions,
+                if self.variable_fps { "slice" } else { "tick" },
                 if status.stopped { "  TERMINATED" } else { "" },
             ));
+            if self.variable_fps {
+                let seconds = self.realtime_elapsed.as_secs_f64();
+                let fps = if seconds > 0.0 { self.realtime_pages as f64 / seconds } else { 0.0 };
+                ui.label(format!(
+                    "Realtime variable FPS: {fps:.1} completed pages/s (average) | Pages: {} | Skipped audio: {} samples | {} ms work slices",
+                    self.realtime_pages, self.realtime_skipped_audio, self.slice_ms,
+                ));
+                ui.small("No per-page instruction budget. Slow video finishes across clock ticks; sustained overload can still cause audio gaps.");
+            } else {
             let budget_color = if self.slow_video || self.slow_audio {
                 Color32::YELLOW
             } else {
@@ -1089,6 +1241,7 @@ impl App {
                  A tick can hit an instruction limit without missing its wall-clock deadline, or vice versa. \
                  These are not necessarily device playback gaps. F2 or loading a file resets counters.",
             );
+            }
             if let Some(error) = &self.compile_error {
                 ui.colored_label(Color32::RED, format!("Compile error: {error}. Playback suspended until corrected."));
             }
@@ -1267,7 +1420,7 @@ impl App {
                 ui.label("NSM: launch from a session manager to save source and playback settings in its assigned project. Loading restarts the VM at time zero. File Load is disabled; examples are imported into the session. Stop recording and wait for finalization before saving.");
                 ui.label("Audio > DC blocker: remove DC offset from speaker playback (enabled by default). Headless WAV exports use the separate --dc-blocker flag.");
                 ui.label("Recording: choose an output folder and Start/Stop to save PPM frames and full-scale, unfiltered WAV audio. Run/pause and compile errors pause capture. Optional MP4 uses installed FFmpeg after Stop; original files are retained.");
-                ui.label("Playback: choose Default (4M), Complex (64M), Very complex (128M), or custom instructions per VM tick. Budget changes apply to the next tick without resetting the VM or changing work slices; higher budgets do not guarantee 60 Hz. Preview refresh affects only the display, not recordings. Audio rebuffering uses short fades; sustained overload can still cause gaps.");
+                ui.label("Playback: Fixed ticks (default) uses Default (4M), Complex (64M), Very complex (128M), or custom instructions per tick. Realtime variable FPS instead finishes video pages across clock ticks, catches up video time and prioritizes audio without a per-page budget. Changing modes resets and pauses the VM. Recording requires fixed ticks; mode changes are blocked until recording finishes. Preview refresh affects only the display. Work slices remain bounded; sustained overload can still cause audio gaps. Realtime status reports average completed-page FPS and skipped audio.");
                 ui.label("Debugger: pause, then Step/F3 for one instruction with normal media scheduling and no sound. Inspect either context's cyclic data/return stacks and all physical memory in read-only pages. Hover values for signed/16.16 forms. The next instruction is highlighted in the editor; implicit end-of-program is marked at EOF. Fix compile errors and finish recording before stepping.");
                 ui.separator();
                 ui.heading("IBNIZ instruction reference");
@@ -1462,6 +1615,7 @@ mod tests {
         app.buffer_ms = 140;
         app.dc_blocker = false;
         app.slice_ms = 3;
+        app.variable_fps = true;
         app.editor = false;
         app.running = true;
         app.vm.memory_mut()[0x123] = 42;
@@ -1487,6 +1641,7 @@ mod tests {
         assert_eq!(restored.buffer_ms, 140);
         assert!(!restored.dc_blocker);
         assert_eq!(restored.slice_ms, 3);
+        assert!(restored.variable_fps);
         assert!(!restored.editor);
         assert!(restored.running);
         assert_eq!(restored.vm.status().frame, 0);
@@ -2253,6 +2408,105 @@ mod tests {
         assert_eq!(app.late_ticks, 1);
         assert_eq!(app.audio_budget_misses, 0);
         assert_eq!(app.video_budget_misses, 0);
+    }
+
+    #[test]
+    fn variable_fps_mode_resets_pauses_and_rejects_recording_and_mode_changes_during_takes() {
+        let ctx = egui::Context::default();
+        ctx.style_mut(|style| style.animation_time = 0.0);
+        let mut app = app();
+        assert!(!app.variable_fps);
+        app.vm.memory_mut()[0x123] = 42;
+        app.budget = 4;
+        click_label(&mut app, &ctx, "Playback");
+        click_label(&mut app, &ctx, "Realtime variable FPS");
+        assert!(app.variable_fps);
+        assert!(!app.running);
+        assert_eq!(app.vm.memory()[0x123], 0);
+        assert!(app.render.is_none());
+        assert_eq!(app.budget, 4);
+        app.start_recording();
+        assert!(app.recording.is_none());
+        assert!(app.error.as_ref().unwrap().contains("fixed-tick"));
+        app.error = None;
+        for expected in 1..=3 {
+            app.step_instruction(&ctx);
+            assert_eq!(app.vm.status().instructions_executed, expected);
+        }
+        app.set_variable_fps(false);
+        assert_eq!(app.vm.status().instructions_executed, 0);
+        let directory = nsm::tests::TestDirectory::new();
+        app.recording_directory = directory.0.to_string_lossy().into_owned();
+        app.start_recording();
+        assert!(app.recording.is_some());
+        app.set_variable_fps(true);
+        assert!(!app.variable_fps);
+        assert!(app.error.as_ref().unwrap().contains("Finish recording"));
+        app.stop_recording();
+        app.set_variable_fps(true);
+        assert!(
+            !app.variable_fps,
+            "finalizing a take must also block mode changes"
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.recording.is_some() {
+            assert!(Instant::now() < deadline);
+            app.poll_recording(&ctx);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn variable_fps_clock_excludes_pauses_errors_and_resets_without_using_tick_budgets() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.replace_source("[1]".into(), Program::compile("[1]").unwrap());
+        app.set_variable_fps(true);
+        app.budget = 4;
+        app.slice_ms = 0;
+        app.toggle_running();
+        app.tick(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, 1024);
+        assert_eq!(app.vm.status().frame, 0);
+        assert!(app.render.is_none());
+        assert!(app.realtime.is_some());
+        app.realtime_updated = Some(Instant::now() - Duration::from_secs(2));
+        app.tick(&ctx);
+        assert!(app.vm.status().frame >= 120);
+        assert!(app.realtime_skipped_audio >= 120 * 1024);
+        assert_eq!(app.vm.status().instructions_executed, 2048);
+        assert_eq!(app.video_budget_misses, 0);
+        let elapsed = app.realtime_elapsed;
+        app.toggle_running();
+        app.realtime_updated = Some(Instant::now() - Duration::from_secs(100));
+        app.tick(&ctx);
+        assert_eq!(app.realtime_elapsed, elapsed);
+        assert!(app.realtime_updated.is_none());
+        app.toggle_running();
+        app.tick(&ctx);
+        assert_eq!(app.realtime_elapsed, elapsed);
+        app.source = "invalid".into();
+        app.recompile();
+        let instructions = app.vm.status().instructions_executed;
+        app.tick(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, instructions);
+        assert_eq!(app.realtime_elapsed, elapsed);
+        app.source = "[1]".into();
+        app.recompile();
+        app.tick(&ctx);
+        assert_eq!(app.vm.status().instructions_executed, instructions + 1024);
+        assert_eq!(app.realtime_elapsed, elapsed);
+        app.reset();
+        assert!(app.variable_fps);
+        assert_eq!(app.realtime_elapsed, Duration::ZERO);
+        assert_eq!(app.realtime_pages, 0);
+        assert_eq!(app.realtime_skipped_audio, 0);
+        assert!(app.realtime.is_none());
+        assert_eq!(app.vm.status().frame, 0);
+        app.request_example(bundled_example("plasma.ib"));
+        assert!(app.variable_fps);
+        assert!(!app.running);
+        assert!(app.realtime.is_none());
     }
 
     #[test]

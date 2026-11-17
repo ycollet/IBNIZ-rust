@@ -1,4 +1,104 @@
-use ibniz::{Context, Instruction, Program, VideoMode, Vm, export};
+use ibniz::{Context, Instruction, Program, RealtimeRender, VideoMode, Vm, export};
+
+#[test]
+fn realtime_video_spans_clock_ticks_while_audio_runs_ahead() {
+    let mut vm = Vm::new(Program::compile("^xp M d3r15&*").unwrap());
+    let mut render = RealtimeRender::new(&vm);
+    let mut pages = Vec::new();
+    let mut audio_before_video = 0;
+    let mut samples = Vec::new();
+    for clock in 0..40 {
+        for _ in 0..8 {
+            let before = vm.status().instructions_executed;
+            let batch = render.advance(&mut vm, clock, 4096, 4096);
+            assert!(batch.instructions <= 4096);
+            assert_eq!(
+                vm.status().instructions_executed - before,
+                batch.instructions as u64
+            );
+            assert_eq!(batch.skipped_audio, 0);
+            samples.extend_from_slice(&batch.audio);
+            if pages.is_empty() {
+                audio_before_video += batch.audio.len();
+            }
+            if batch.video_complete {
+                assert!(pages.last().is_none_or(|last| *last < clock));
+                assert_eq!(
+                    vm.data_stack_entry(Context::Video, 2).value,
+                    (clock << 16) as i32,
+                );
+                pages.push(clock);
+                let before = format!("{:?}", vm.status());
+                let waiting = render.advance(&mut vm, clock, 4096, 4096);
+                assert_eq!(waiting.instructions, 0);
+                assert!(!waiting.video_complete);
+                assert_eq!(format!("{:?}", vm.status()), before);
+                // A paused debugger can still step after a page flip.
+                let step = render.step(&mut vm, clock);
+                assert_eq!(step.instructions, 1);
+                break;
+            }
+        }
+    }
+    assert!(audio_before_video >= 4096);
+    assert!(pages.len() >= 2, "{pages:?}");
+    assert!(pages[0] > 0, "video should span several clock ticks");
+    assert_eq!(vm.status().frame, 39);
+    let mut reference = Vm::new(Program::compile("^xp M d3r15&*").unwrap());
+    let expected: Vec<_> = (0..4)
+        .flat_map(|_| reference.render_frame(4_000_000).audio)
+        .collect();
+    assert_eq!(&samples[..4096], expected.as_slice());
+}
+
+#[test]
+fn realtime_fused_slices_match_single_instruction_execution() {
+    let program = Program::compile("d*xd*+ M d3r15&*").unwrap();
+    let execute = |limit| {
+        let mut vm = Vm::new(program.clone());
+        let mut render = RealtimeRender::new(&vm);
+        let mut audio = Vec::new();
+        while vm.status().instructions_executed < 2_000_000 {
+            let batch = render.advance(&mut vm, 0, 4096, limit);
+            audio.extend(batch.audio);
+            if batch.video_complete {
+                return (vm, audio);
+            }
+            assert!(batch.instructions > 0 || !audio.is_empty());
+        }
+        panic!("video did not complete");
+    };
+    let (reference, expected_audio) = execute(1);
+    let (optimized, actual_audio) = execute(257);
+    assert_eq!(actual_audio, expected_audio);
+    assert_eq!(optimized.memory(), reference.memory());
+    assert_eq!(optimized.rgb(), reference.rgb());
+    assert_eq!(
+        format!("{:?}", optimized.status()),
+        format!("{:?}", reference.status())
+    );
+}
+
+#[test]
+fn realtime_overload_is_bounded_and_reports_audio_time_skips() {
+    let mut vm = Vm::new(Program::compile("[1]").unwrap());
+    let mut render = RealtimeRender::new(&vm);
+    vm.memory_mut()[0x123] = 42;
+    let first = render.advance(&mut vm, 0, 4096, 17);
+    assert_eq!(first.instructions, 17);
+    assert!(!first.video_complete);
+    let delayed = render.advance(&mut vm, 600, 4096, 17);
+    assert_eq!(delayed.instructions, 17);
+    assert_eq!(delayed.skipped_audio, 600 * 1024);
+    assert!(!delayed.video_complete);
+    assert_eq!(vm.status().frame, 600);
+    assert_eq!(vm.memory()[0x123], 42);
+    vm.replace_program(Program::compile("T").unwrap());
+    let stopped = render.advance(&mut vm, 601, 4096, 17);
+    assert_eq!(stopped.instructions, 1);
+    assert!(vm.status().stopped);
+    assert_eq!(render.advance(&mut vm, 602, 4096, 17).instructions, 0);
+}
 
 fn run(source: &str) -> Vm {
     let mut vm = Vm::new(Program::compile(source).unwrap());

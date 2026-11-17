@@ -226,6 +226,136 @@ impl FrameRender {
     }
 }
 
+/// One bounded realtime work batch, not a fixed-duration media frame.
+pub struct RealtimeBatch {
+    pub audio: Vec<i16>,
+    pub instructions: usize,
+    pub video_complete: bool,
+    /// Audio samples skipped to catch up after sustained overload or suspension.
+    pub skipped_audio: u64,
+}
+
+/// Realtime playback state. Keep one scheduler per VM, starting from reset;
+/// do not interleave it with fixed-tick rendering. Clock ticks are monotonic,
+/// measured at 60 Hz with pauses excluded. There is no per-video-page budget.
+pub struct RealtimeRender {
+    audio_cursor: i64,
+    delivered: u64,
+    last_video_tick: Option<u64>,
+    clock_tick: u64,
+}
+
+impl RealtimeRender {
+    pub fn new(vm: &Vm) -> Self {
+        Self {
+            audio_cursor: vm.audio_written,
+            delivered: 0,
+            last_video_tick: None,
+            clock_tick: 0,
+        }
+    }
+
+    /// Prioritize up to `audio_ahead` samples ahead of the playback clock,
+    /// then spend remaining work on video. Return at a page flip, an audio
+    /// block, or the instruction limit. A zero-instruction batch is waiting
+    /// for the next clock tick (or the VM has terminated).
+    pub fn advance(
+        &mut self,
+        vm: &mut Vm,
+        clock_tick: u64,
+        audio_ahead: usize,
+        limit: usize,
+    ) -> RealtimeBatch {
+        self.run(vm, clock_tick, audio_ahead, limit, true)
+    }
+
+    /// Debugger stepping bypasses page pacing but preserves media scheduling.
+    pub fn step(&mut self, vm: &mut Vm, clock_tick: u64) -> RealtimeBatch {
+        self.run(vm, clock_tick, 1024, 1, false)
+    }
+
+    fn run(
+        &mut self,
+        vm: &mut Vm,
+        clock_tick: u64,
+        audio_ahead: usize,
+        limit: usize,
+        paced: bool,
+    ) -> RealtimeBatch {
+        assert!(
+            clock_tick >= self.clock_tick,
+            "realtime clock moved backwards"
+        );
+        self.clock_tick = clock_tick;
+        if vm.has_extended_fusion {
+            self.run_specialized::<true>(vm, clock_tick, audio_ahead, limit, paced)
+        } else {
+            self.run_specialized::<false>(vm, clock_tick, audio_ahead, limit, paced)
+        }
+    }
+
+    fn run_specialized<const EXTENDED: bool>(
+        &mut self,
+        vm: &mut Vm,
+        clock_tick: u64,
+        audio_ahead: usize,
+        limit: usize,
+        paced: bool,
+    ) -> RealtimeBatch {
+        let mut batch = RealtimeBatch {
+            audio: Vec::new(),
+            instructions: 0,
+            video_complete: false,
+            skipped_audio: 0,
+        };
+        if limit == 0 || vm.stopped {
+            return batch;
+        }
+        vm.frame = clock_tick as u32;
+        let due = clock_tick.saturating_mul(1024);
+        // Do not generate an unbounded stale backlog after an interruption.
+        // Moving sample time leaves the cyclic stack and in-flight code intact.
+        if paced && vm.audio_enabled && due.saturating_sub(self.delivered) > 4096 {
+            let skip = due - self.delivered;
+            vm.audio_position = vm.audio_position.wrapping_add(skip as i64);
+            vm.audio_written = vm.audio_written.wrapping_add(skip as i64);
+            self.audio_cursor = self.audio_cursor.wrapping_add(skip as i64);
+            self.delivered = due;
+            batch.skipped_audio = skip;
+        }
+        if paced && self.last_video_tick == Some(clock_tick) {
+            return batch;
+        }
+        vm.page_flipped = false;
+        let target = due.saturating_add(audio_ahead as u64);
+        while batch.instructions < limit && !vm.stopped {
+            while vm.audio_enabled && vm.audio_written > self.audio_cursor {
+                batch
+                    .audio
+                    .push((vm.memory[AUDIO_BASE + vm.audio_read] as u16 ^ 0x8000) as i16);
+                vm.audio_read = (vm.audio_read + 1) & 0xffff;
+                self.audio_cursor = self.audio_cursor.wrapping_add(1);
+                self.delivered = self.delivered.saturating_add(1);
+                if batch.audio.len() == 1024 {
+                    return batch;
+                }
+            }
+            vm.preferred = if vm.audio_enabled && self.delivered < target {
+                Context::Audio
+            } else {
+                Context::Video
+            };
+            batch.instructions += vm.step_instructions::<EXTENDED>(limit - batch.instructions);
+            if vm.page_flipped {
+                self.last_video_tick = Some(clock_tick);
+                batch.video_complete = true;
+                break;
+            }
+        }
+        batch
+    }
+}
+
 /// Persistent 32-bit, 16.16 fixed-point IBNIZ machine with cyclic stacks.
 pub struct Vm {
     program: Program,

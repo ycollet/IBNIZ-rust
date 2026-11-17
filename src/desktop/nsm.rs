@@ -54,6 +54,8 @@ pub struct State {
     pub slice_ms: u64,
     pub preview_fps: u32,
     pub buffer_ms: u32,
+    #[serde(default)]
+    pub variable_fps: bool,
 }
 
 impl State {
@@ -641,7 +643,22 @@ pub(super) mod tests {
             slice_ms: 6,
             preview_fps: 60,
             buffer_ms: 80,
+            variable_fps: false,
         }
+    }
+
+    #[test]
+    fn older_sessions_default_to_fixed_ticks_and_realtime_mode_round_trips() {
+        let mut value = serde_json::to_value(state()).unwrap();
+        value.as_object_mut().unwrap().remove("variable_fps");
+        let old: State = serde_json::from_value(value).unwrap();
+        assert!(!old.variable_fps);
+        let mut realtime = old;
+        realtime.variable_fps = true;
+        let restored: State =
+            serde_json::from_slice(&serde_json::to_vec(&realtime).unwrap()).unwrap();
+        assert_eq!(restored, realtime);
+        assert!(restored.validate().is_ok());
     }
 
     #[test]

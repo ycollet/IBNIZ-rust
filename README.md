@@ -9,7 +9,7 @@ This is an **altered implementation**, not the original C distribution.
 
 ## Features
 
-- Live code editing with syntax highlighting, realtime video and audio.
+- Live code editing with syntax highlighting, video and audio, and optional variable-FPS playback.
 - 284 bundled examples with search, credits and source references.
 - Single-step debugger, stack/memory inspection and an offline language manual.
 - PPM/WAV recording and headless rendering; optional MP4 conversion with FFmpeg.
