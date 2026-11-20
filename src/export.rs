@@ -16,7 +16,6 @@ pub fn write_ppm(mut writer: impl Write, rgb: &[u8]) -> io::Result<()> {
 }
 
 /// Stream a known sample count without keeping the recording in memory.
-///
 /// Wrap file outputs in `std::io::BufWriter` to batch sample writes.
 /// Call `finish` to verify the sample count and report buffered I/O errors.
 #[must_use = "call finish to verify the sample count and flush the WAV output"]

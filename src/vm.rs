@@ -80,7 +80,6 @@ pub struct Frame {
 }
 
 /// A completed tick without RGB conversion.
-///
 /// To capture this tick's image, read the visible page before executing more
 /// instructions.
 pub struct FrameTick {
@@ -114,11 +113,9 @@ pub struct FrameProfile {
     pub video_instructions: usize,
 }
 
-/// A resumable tick with an instruction limit.
-///
-/// Resume on the same VM. Do not call `step`, `reset` or another frame renderer
-/// between slices. Live input and program replacement are supported.
-/// Discard this job when resetting the VM.
+/// A resumable, instruction-limited tick on one VM; discard it on reset.
+/// Do not interleave slices with `step`, `reset` or another frame renderer.
+/// Live input and program replacement are supported.
 pub struct FrameRender {
     budget: usize,
     instructions: usize,
@@ -139,7 +136,6 @@ impl FrameRender {
     }
 
     /// Execute at most `slice_instructions` instructions.
-    ///
     /// Return the tick when it completes or reaches its total instruction budget.
     /// Do not resume a completed job.
     pub fn advance(&mut self, vm: &mut Vm, slice_instructions: usize) -> Option<Frame> {
@@ -241,10 +237,9 @@ pub struct RealtimeBatch {
     pub skipped_audio: u64,
 }
 
-/// Realtime playback state with no per-video-page budget.
-///
-/// Use one scheduler per VM, starting from reset. Do not interleave it with
-/// fixed-tick rendering. Supply a monotonic 60 Hz clock that excludes pauses.
+/// Realtime state with no per-page budget. Use one scheduler per VM, starting from reset.
+/// Do not interleave with fixed-tick rendering.
+/// Supply a monotonic 60 Hz clock that excludes pauses.
 pub struct RealtimeRender {
     audio_cursor: i64,
     delivered: u64,
@@ -263,10 +258,8 @@ impl RealtimeRender {
     }
 
     /// Generate audio up to `audio_ahead` samples ahead of the clock, then video.
-    ///
     /// Return at a page flip, an audio block, or the instruction limit.
-    /// With a positive limit, a zero-instruction batch means the scheduler is
-    /// waiting for the next clock tick or the VM has terminated.
+    /// With a positive limit, zero instructions means waiting for a clock tick or VM termination.
     pub fn advance(
         &mut self,
         vm: &mut Vm,
